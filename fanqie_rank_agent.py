@@ -25,6 +25,7 @@ from email.message import EmailMessage
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from string import Template
 from typing import Any, Iterable
 
 
@@ -923,35 +924,15 @@ def build_html_report(data: dict[str, Any]) -> str:
     if data.get("completed_only"):
         title += "（已完结）"
     summary = data.get("summary") or {}
-    books = data.get("books") or []
-    generated = html.escape(str(data.get("generated_at") or ""))
-    rows = []
-    for index, item in enumerate(books, start=1):
-        url = html.escape(str(item.get("latest_book_url") or ""))
-        name = html.escape(str(item.get("latest_title") or item.get("book_id") or ""))
-        link = f'<a href="{url}" target="_blank" rel="noopener">打开</a>' if url else "-"
-        rows.append(
-            "<tr>"
-            f"<td>{index}</td>"
-            f"<td class=\"title\">{name}</td>"
-            f"<td class=\"climb\">{html.escape(climb_label(item))}</td>"
-            f"<td>{html.escape(str(item.get('rank_pos') or '-'))}</td>"
-            f"<td>{html.escape(str(item.get('source_name') or ''))}</td>"
-            f"<td>{safe_int(item.get('read_count')):,}</td>"
-            f"<td>{html.escape(str(item.get('creation_status_label') or ''))}</td>"
-            f"<td>{link}</td>"
-            "</tr>"
-        )
-    if not rows:
-        rows.append('<tr><td colspan="8">暂无榜单数据</td></tr>')
-    return f"""<!doctype html>
+    data_json = html.escape(json.dumps(data, ensure_ascii=False), quote=False)
+    template = Template("""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(title)}</title>
+  <title>$title</title>
   <style>
-    :root {{
+    :root {
       color-scheme: light;
       --bg: #f6f7f9;
       --panel: #ffffff;
@@ -960,120 +941,428 @@ def build_html_report(data: dict[str, Any]) -> str:
       --line: #d8dee4;
       --accent: #0969da;
       --rise: #cf222e;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
+      --fall: #1a7f37;
+      --soft: #eef2f6;
+    }
+    * { box-sizing: border-box; }
+    body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-    }}
-    main {{
-      max-width: 1180px;
+    }
+    main {
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 32px 18px 48px;
-    }}
-    h1 {{
+      padding: 28px 18px 44px;
+    }
+    h1 {
       margin: 0 0 10px;
       font-size: clamp(24px, 4vw, 38px);
       letter-spacing: 0;
-    }}
-    .meta {{
+    }
+    .meta {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin: 18px 0 22px;
-    }}
-    .pill {{
+      margin: 16px 0 18px;
+    }
+    .pill {
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: 6px;
       background: var(--panel);
-      padding: 7px 11px;
+      padding: 7px 10px;
       color: var(--muted);
       font-size: 14px;
-    }}
-    .table-wrap {{
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(240px, .9fr);
+      gap: 12px;
+      align-items: end;
+      margin: 0 0 14px;
+    }
+    .control-label, .search-label {
+      display: block;
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .segmented button {
+      min-height: 36px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .segmented button:last-child {
+      border-right: 0;
+    }
+    .segmented button[aria-pressed="true"] {
+      background: var(--text);
+      color: #fff;
+      font-weight: 700;
+    }
+    .search input {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 11px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+    }
+    .table-caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .table-wrap {
       overflow-x: auto;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-    }}
-    table {{
+    }
+    table {
       width: 100%;
-      min-width: 880px;
+      min-width: 1060px;
       border-collapse: collapse;
-    }}
-    th, td {{
-      padding: 11px 12px;
+    }
+    th, td {
+      padding: 10px 12px;
       border-bottom: 1px solid var(--line);
       text-align: left;
       vertical-align: top;
       font-size: 14px;
-    }}
-    th {{
+    }
+    th {
       color: var(--muted);
       font-weight: 600;
       background: #fbfbfc;
-    }}
-    td:first-child, th:first-child, td:nth-child(3), th:nth-child(3), td:nth-child(4), th:nth-child(4), td:nth-child(6), th:nth-child(6) {{
+      white-space: nowrap;
+    }
+    th button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 28px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 4px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    th button[data-active="true"] {
+      color: var(--text);
+      background: var(--soft);
+    }
+    .sort-mark {
+      display: inline-block;
+      width: 12px;
+      color: var(--accent);
+      font-weight: 800;
+    }
+    td:first-child, th:first-child, td:nth-child(3), th:nth-child(3), td:nth-child(4), th:nth-child(4), td:nth-child(6), th:nth-child(6) {
       text-align: right;
       white-space: nowrap;
-    }}
-    .title {{
-      min-width: 240px;
+    }
+    .title {
+      min-width: 260px;
       font-weight: 600;
-    }}
-    .climb {{
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .climb {
       color: var(--rise);
       font-weight: 700;
-    }}
-    a {{
+    }
+    .status, .tag {
+      display: inline-block;
+      min-width: 52px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 7px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .tag[data-tag="已选择"] {
+      color: #1a7f37;
+      border-color: #4ac26b;
+      background: #ecfdf0;
+    }
+    .tag[data-tag="不要"] {
+      color: #a40e26;
+      border-color: #ffb3c1;
+      background: #fff1f3;
+    }
+    a {
       color: var(--accent);
       text-decoration: none;
       font-weight: 600;
-    }}
-    a:hover {{ text-decoration: underline; }}
-    .note {{
+    }
+    a:hover { text-decoration: underline; }
+    .empty {
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .note {
       color: var(--muted);
       font-size: 13px;
       margin-top: 14px;
-    }}
+    }
+    @media (max-width: 760px) {
+      main {
+        padding: 20px 12px 36px;
+      }
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+      .table-caption {
+        display: block;
+      }
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>{html.escape(title)}</h1>
+    <h1>$title</h1>
     <div class="meta">
-      <span class="pill">生成时间：{generated}</span>
-      <span class="pill">榜单源：{safe_int(summary.get('snapshot_count'))} 个</span>
-      <span class="pill">入库记录：{safe_int(summary.get('book_count')):,} 本</span>
-      <span class="pill">Top {safe_int(data.get('top'))}</span>
+      <span class="pill">生成时间：$generated</span>
+      <span class="pill">榜单源：$snapshot_count 个</span>
+      <span class="pill">入库记录：$book_count 本</span>
+      <span class="pill">Top $top_count</span>
+    </div>
+    <section class="toolbar" aria-label="筛选和排序">
+      <div class="control">
+        <span class="control-label">作品状态</span>
+        <div class="segmented" id="statusFilter">
+          <button type="button" data-status="all" aria-pressed="true">全部</button>
+          <button type="button" data-status="连载中" aria-pressed="false">连载中</button>
+          <button type="button" data-status="已完结" aria-pressed="false">已完结</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="control-label">标注状态</span>
+        <div class="segmented" id="tagFilter">
+          <button type="button" data-tag="all" aria-pressed="true">全部</button>
+          <button type="button" data-tag="待观察" aria-pressed="false">待观察</button>
+          <button type="button" data-tag="已选择" aria-pressed="false">已选择</button>
+          <button type="button" data-tag="不要" aria-pressed="false">不要</button>
+        </div>
+      </div>
+      <label class="search">
+        <span class="search-label">搜索</span>
+        <input id="searchInput" type="search" placeholder="书名 / 作者 / 榜单">
+      </label>
+    </section>
+    <div class="table-caption">
+      <span id="visibleCount">0 本</span>
+      <span id="sortState">默认按爬升降序</span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>书名</th>
-            <th>爬升</th>
-            <th>榜位</th>
+            <th><button type="button" data-sort="latest_title">书名<span class="sort-mark"></span></button></th>
+            <th><button type="button" data-sort="effective_climb" data-active="true">爬升<span class="sort-mark">↓</span></button></th>
+            <th><button type="button" data-sort="rank_pos">榜位<span class="sort-mark"></span></button></th>
             <th>榜单</th>
-            <th>在读</th>
-            <th>状态</th>
+            <th><button type="button" data-sort="read_count">在读<span class="sort-mark"></span></button></th>
+            <th>作品状态</th>
+            <th>标注</th>
             <th>链接</th>
           </tr>
         </thead>
-        <tbody>
-          {''.join(rows)}
-        </tbody>
+        <tbody id="bookRows"></tbody>
       </table>
     </div>
     <p class="note">注：番茄书名有字体混淆，报告里可能显示为怪字；链接和排名数据不受影响。</p>
   </main>
+  <script type="application/json" id="report-data">$data_json</script>
+  <script>
+    const report = JSON.parse(document.getElementById("report-data").textContent);
+    const books = Array.isArray(report.books) ? report.books : [];
+    const state = {
+      status: "all",
+      tag: "all",
+      search: "",
+      sortKey: "effective_climb",
+      sortDir: "desc"
+    };
+    const numberFormat = new Intl.NumberFormat("zh-CN");
+    const bookRows = document.getElementById("bookRows");
+    const visibleCount = document.getElementById("visibleCount");
+    const sortState = document.getElementById("sortState");
+    const sortLabels = {
+      latest_title: "书名",
+      effective_climb: "爬升",
+      rank_pos: "榜位",
+      read_count: "在读"
+    };
+
+    function esc(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function numberValue(book, key) {
+      if (key === "effective_climb") {
+        return Number(book.effective_climb ?? book.rank_change_1d ?? book.rank_pos_diff ?? 0);
+      }
+      return Number(book[key] ?? 0);
+    }
+
+    function climbLabel(book) {
+      const value = numberValue(book, "effective_climb");
+      return value > 0 ? "+" + value : String(value);
+    }
+
+    function filteredBooks() {
+      const needle = state.search.trim().toLowerCase();
+      return books.filter((book) => {
+        if (state.status !== "all" && book.creation_status_label !== state.status) return false;
+        if (state.tag !== "all" && book.status_tag !== state.tag) return false;
+        if (!needle) return true;
+        const haystack = [
+          book.latest_title,
+          book.latest_author,
+          book.source_name,
+          book.book_id,
+          book.note
+        ].join(" ").toLowerCase();
+        return haystack.includes(needle);
+      });
+    }
+
+    function sortedBooks(items) {
+      const sorted = [...items];
+      const dir = state.sortDir === "asc" ? 1 : -1;
+      sorted.sort((a, b) => {
+        if (state.sortKey === "latest_title") {
+          const compared = String(a.latest_title || "").localeCompare(String(b.latest_title || ""), "zh-Hans-CN");
+          return compared * dir || Number(a.rank_pos || 0) - Number(b.rank_pos || 0);
+        }
+        const compared = numberValue(a, state.sortKey) - numberValue(b, state.sortKey);
+        return compared * dir || Number(a.rank_pos || 0) - Number(b.rank_pos || 0);
+      });
+      return sorted;
+    }
+
+    function renderRows() {
+      const items = sortedBooks(filteredBooks());
+      visibleCount.textContent = numberFormat.format(items.length) + " 本";
+      sortState.textContent = sortLabels[state.sortKey] + (state.sortDir === "asc" ? "升序" : "降序");
+      if (!items.length) {
+        bookRows.innerHTML = '<tr><td class="empty" colspan="9">暂无匹配数据</td></tr>';
+        return;
+      }
+      bookRows.innerHTML = items.map((book, index) => {
+        const url = book.latest_book_url || "";
+        const link = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">打开</a>' : "-";
+        return "<tr>"
+          + "<td>" + (index + 1) + "</td>"
+          + '<td class="title">' + esc(book.latest_title || book.book_id) + '<div class="muted">' + esc(book.latest_author || "") + "</div></td>"
+          + '<td class="climb">' + esc(climbLabel(book)) + "</td>"
+          + "<td>" + esc(book.rank_pos || "-") + "</td>"
+          + "<td>" + esc(book.source_name || "") + "</td>"
+          + "<td>" + numberFormat.format(numberValue(book, "read_count")) + "</td>"
+          + '<td><span class="status">' + esc(book.creation_status_label || "-") + "</span></td>"
+          + '<td><span class="tag" data-tag="' + esc(book.status_tag || "") + '">' + esc(book.status_tag || "-") + "</span></td>"
+          + "<td>" + link + "</td>"
+          + "</tr>";
+      }).join("");
+    }
+
+    function setPressed(containerId, dataName, value) {
+      document.querySelectorAll("#" + containerId + " [data-" + dataName + "]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset[dataName] === value));
+      });
+    }
+
+    document.querySelectorAll("[data-status]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.status = button.dataset.status;
+        setPressed("statusFilter", "status", state.status);
+        renderRows();
+      });
+    });
+
+    document.querySelectorAll("[data-tag]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.tag = button.dataset.tag;
+        setPressed("tagFilter", "tag", state.tag);
+        renderRows();
+      });
+    });
+
+    document.getElementById("searchInput").addEventListener("input", (event) => {
+      state.search = event.target.value;
+      renderRows();
+    });
+
+    document.querySelectorAll("[data-sort]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextKey = button.dataset.sort;
+        if (state.sortKey === nextKey) {
+          state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          state.sortKey = nextKey;
+          state.sortDir = nextKey === "rank_pos" || nextKey === "latest_title" ? "asc" : "desc";
+        }
+        document.querySelectorAll("[data-sort]").forEach((item) => {
+          const active = item.dataset.sort === state.sortKey;
+          item.dataset.active = String(active);
+          item.querySelector(".sort-mark").textContent = active ? (state.sortDir === "asc" ? "↑" : "↓") : "";
+        });
+        renderRows();
+      });
+    });
+
+    renderRows();
+  </script>
 </body>
 </html>
-"""
+""")
+    return template.substitute(
+        title=html.escape(title),
+        generated=html.escape(str(data.get("generated_at") or "")),
+        snapshot_count=str(safe_int(summary.get("snapshot_count"))),
+        book_count=f"{safe_int(summary.get('book_count')):,}",
+        top_count=str(safe_int(data.get("top"))),
+        data_json=data_json,
+    )
 
 
 def resolve_output_path(path_text: str) -> Path:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fanqie_rank_agent import (
     RankSource,
+    build_html_report,
     build_markdown_report,
     build_static_report_data,
     connect_db,
@@ -77,8 +78,12 @@ class FanqieRankAgentTests(unittest.TestCase):
                 save_snapshot(conn, source, {"rank_version": "1", "total_num": 1}, rows, "2026-05-29")
                 data = build_static_report_data(conn, top=1)
             markdown = build_markdown_report(data)
+            html = build_html_report(data)
             self.assertIn("番茄榜单日报 2026-05-29", markdown)
             self.assertIn("A\\|书", markdown)
+            self.assertIn('data-status="已完结"', html)
+            self.assertIn('data-sort="read_count"', html)
+            self.assertIn('data-tag="不要"', html)
 
 
 if __name__ == "__main__":

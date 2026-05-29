@@ -191,10 +191,10 @@ python3 fanqie_rank_agent.py report --limit 30
 生成 GitHub 可直接查看的日报页面：
 
 ```bash
-python3 fanqie_rank_agent.py static-report --top 30
+python3 fanqie_rank_agent.py static-report --top 200
 ```
 
-输出会更新 `reports/latest.md`、`reports/latest.html` 和 `docs/index.html`。在 GitHub 仓库里打开 `reports/latest.md` 就能直接查看每日 Top 榜单。
+输出会更新 `reports/latest.md`、`reports/latest.html` 和 `docs/index.html`。HTML 页面支持作品状态筛选、标注状态筛选、搜索，以及按“在读 / 爬升 / 榜位”排序。
 
 ### GitHub Actions 定时运行
 

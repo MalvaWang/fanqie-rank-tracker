@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate static report page
         run: |
-          python3 fanqie_rank_agent.py static-report --top 30
+          python3 fanqie_rank_agent.py static-report --top 200
 
       - name: Commit updated database and report
         run: |
