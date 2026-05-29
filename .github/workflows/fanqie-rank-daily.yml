@@ -1,0 +1,59 @@
+name: Fanqie Rank Daily
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 16:10 Asia/Shanghai. GitHub cron uses UTC.
+    - cron: "10 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fanqie-rank-daily
+  cancel-in-progress: false
+
+jobs:
+  snapshot-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Capture all Fanqie rankings
+        run: |
+          python3 fanqie_rank_agent.py snapshot-all \
+            "https://fanqienovel.com/rank/1_2_1141" \
+            --limit 100 \
+            --timeout 30
+
+      - name: Commit updated SQLite database
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fanqie_rank_tracker/rank_tracker.sqlite3
+          if git diff --cached --quiet; then
+            echo "No database changes to commit."
+          else
+            git commit -m "chore: update fanqie rank snapshot $(date -u +'%Y-%m-%d')"
+            git push
+          fi
+
+      - name: Push Feishu report
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          FEISHU_SECRET: ${{ secrets.FEISHU_SECRET }}
+        run: |
+          if [ -z "$FEISHU_WEBHOOK" ]; then
+            echo "FEISHU_WEBHOOK secret is not set; skipping Feishu push."
+            exit 0
+          fi
+          python3 fanqie_rank_agent.py feishu-push --top 10

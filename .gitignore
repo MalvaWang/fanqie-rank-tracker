@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.browser_profiles/
+
+# Generated crawl outputs and local working artifacts.
+adapted_scripts/
+fanqie_book_kb/
+fanqie_book_ocr/
+fanqie_book_ocr_page_test/
+fanqie_book_ocr_page_test2/
+fanqie_book_ocr_skill_test/
+fanqie_book_ocr_skill_test2/
+fanqie_book_ocr_test/
+fanqie_kb/
+feishu_wiki_crawl/
+knowledge_base/
+shortdramas_kb/
+垓下之围/
+我在星际战场当护士/
+长安烟火/

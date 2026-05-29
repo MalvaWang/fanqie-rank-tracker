@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>番茄爬榜观察台</title>
+  <style id="rankFontStyle"></style>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #65717e;
+      --line: #d8dee6;
+      --accent: #23715f;
+      --accent-ink: #ffffff;
+      --soft: #eef4f1;
+      --warn: #9a5b12;
+      --bad: #b42318;
+      --good: #147246;
+      --blue: #245da8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    main {
+      width: min(1280px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 22px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 760;
+    }
+
+    .status {
+      min-width: 140px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+      padding: 0 12px;
+    }
+
+    .toolbar,
+    .metrics,
+    .table-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .toolbar {
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .capture-row,
+    .filter-row {
+      display: grid;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .capture-row {
+      grid-template-columns: minmax(300px, 1fr) 90px 150px;
+      margin-bottom: 12px;
+    }
+
+    .filter-row {
+      grid-template-columns: 180px minmax(220px, 1fr) 150px 130px 170px 88px auto;
+    }
+
+    label {
+      display: block;
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    input,
+    select,
+    button {
+      height: 38px;
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 10px;
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid rgba(35, 113, 95, .2);
+      border-color: var(--accent);
+    }
+
+    button {
+      border: 1px solid transparent;
+      padding: 0 14px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 720;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: .7;
+    }
+
+    .segmented {
+      display: inline-grid;
+      grid-template-columns: repeat(4, minmax(64px, 1fr));
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      height: 38px;
+      background: #fff;
+    }
+
+    .segmented button {
+      border-radius: 0;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+      font-weight: 680;
+    }
+
+    .segmented button:last-child {
+      border-right: 0;
+    }
+
+    .segmented button.active {
+      background: var(--soft);
+      color: var(--accent);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .metric {
+      min-height: 74px;
+      padding: 12px 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .metric:last-child {
+      border-right: 0;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .table-panel {
+      overflow: hidden;
+    }
+
+    .table-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 740;
+      background: #fbfcfd;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .col-rank { width: 64px; }
+    .col-climb { width: 86px; }
+    .col-book { width: auto; }
+    .col-author { width: 130px; }
+    .col-read { width: 110px; }
+    .col-finish { width: 82px; }
+    .col-days { width: 74px; }
+    .col-tag { width: 118px; }
+    .col-note { width: 200px; }
+    .col-link { width: 68px; }
+
+    .rank {
+      display: inline-flex;
+      width: 34px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: #eef1f5;
+      font-weight: 760;
+    }
+
+    .climb {
+      font-weight: 760;
+    }
+
+    .climb.up {
+      color: var(--good);
+    }
+
+    .climb.down {
+      color: var(--bad);
+    }
+
+    .book-title {
+      display: block;
+      font-size: 15px;
+      line-height: 1.35;
+      font-weight: 740;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .book-sub {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .link {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 720;
+    }
+
+    .inline-note {
+      height: 32px;
+      font-size: 13px;
+    }
+
+    .inline-tag {
+      height: 32px;
+      font-size: 13px;
+      padding: 5px 8px;
+    }
+
+    .empty {
+      padding: 36px 14px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .capture-row,
+      .filter-row {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+      }
+
+      table {
+        min-width: 1040px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>番茄爬榜观察台</h1>
+      <div class="status" id="status">待加载</div>
+    </header>
+
+    <section class="toolbar">
+      <div class="capture-row">
+        <div>
+          <label for="rankUrl">榜单 URL</label>
+          <input id="rankUrl" type="url" value="https://fanqienovel.com/rank/1_2_1141">
+        </div>
+        <div>
+          <label for="limit">数量</label>
+          <input id="limit" type="number" min="1" max="100" value="100">
+        </div>
+        <button id="captureBtn">抓取今天榜单</button>
+      </div>
+      <div class="filter-row">
+        <div>
+          <label for="sourceSelect">榜单</label>
+          <select id="sourceSelect">
+            <option value="">全部榜单</option>
+          </select>
+        </div>
+        <div>
+          <label for="search">搜索</label>
+          <input id="search" type="text" placeholder="书名 / 作者 / bookId / 备注">
+        </div>
+        <div>
+          <label for="order">排序</label>
+          <select id="order">
+            <option value="fastest">爬榜最快</option>
+            <option value="read_growth">在读增长</option>
+            <option value="rank">当前排名</option>
+            <option value="selected">已选择优先</option>
+          </select>
+        </div>
+        <div>
+          <label for="creationStatus">书籍状态</label>
+          <select id="creationStatus">
+            <option value="">全部</option>
+            <option value="1">连载中</option>
+            <option value="0">已完结</option>
+          </select>
+        </div>
+        <div>
+          <label>状态</label>
+          <div class="segmented" id="tagTabs">
+            <button data-tag="" class="active">全部</button>
+            <button data-tag="待观察">待观察</button>
+            <button data-tag="已选择">已选择</button>
+            <button data-tag="不要">不要</button>
+          </div>
+        </div>
+        <button class="secondary" id="refreshBtn">刷新</button>
+        <a class="link" href="/api/export.csv" id="exportLink">导出 CSV</a>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric"><span>最新快照</span><strong id="mDate">-</strong></div>
+      <div class="metric"><span>当前入榜</span><strong id="mBooks">-</strong></div>
+      <div class="metric"><span>最快爬升</span><strong id="mFastest">-</strong></div>
+      <div class="metric"><span>已选择</span><strong id="mSelected">-</strong></div>
+    </section>
+
+    <section class="table-panel">
+      <div class="table-head">
+        <span id="tableTitle">榜单</span>
+        <span id="tableMeta">-</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-rank">排名</th>
+              <th class="col-climb">爬升</th>
+              <th class="col-book">书名</th>
+              <th class="col-author">作者</th>
+              <th class="col-read">在读</th>
+              <th class="col-finish">完结</th>
+              <th class="col-days">天数</th>
+              <th class="col-tag">状态</th>
+              <th class="col-note">备注</th>
+              <th class="col-link">链接</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" hidden>暂无数据</div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      tag: '',
+      sourceId: '',
+      sources: [],
+      books: []
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text) {
+      $('status').textContent = text;
+    }
+
+    function fmtNumber(value) {
+      const n = Number(value || 0);
+      return Number.isFinite(n) ? n.toLocaleString('zh-CN') : '-';
+    }
+
+    function fmtClimb(value) {
+      if (value === null || value === undefined) return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n) || n === 0) return '0';
+      return n > 0 ? `+${n}` : `${n}`;
+    }
+
+    function climbClass(value) {
+      const n = Number(value || 0);
+      if (n > 0) return 'up';
+      if (n < 0) return 'down';
+      return '';
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '请求失败');
+      return data;
+    }
+
+    function currentSourceQuery() {
+      return state.sourceId ? `source_id=${encodeURIComponent(state.sourceId)}` : '';
+    }
+
+    async function loadSources(selectSourceId) {
+      const data = await api('/api/sources');
+      state.sources = data.sources || [];
+      const select = $('sourceSelect');
+      select.innerHTML = '<option value="">全部榜单</option>';
+      for (const source of state.sources) {
+        const option = document.createElement('option');
+        option.value = String(source.id);
+        option.textContent = source.name || source.url;
+        select.appendChild(option);
+      }
+      if (selectSourceId) {
+        state.sourceId = String(selectSourceId);
+      } else if (!state.sourceId && state.sources.length) {
+        state.sourceId = String(state.sources[0].id);
+      }
+      select.value = state.sourceId;
+      updateExportLink();
+    }
+
+    async function loadSummary() {
+      const query = currentSourceQuery();
+      const summary = await api(`/api/summary${query ? `?${query}` : ''}`);
+      const latest = summary.latest_snapshot || {};
+      $('mDate').textContent = latest.snapshot_date || '-';
+      $('mBooks').textContent = fmtNumber(summary.book_count || 0);
+      $('mSelected').textContent = fmtNumber((summary.tag_counts || {})['已选择'] || 0);
+      const fastest = summary.fastest;
+      $('mFastest').textContent = fastest ? `${fmtClimb(fastest.effective_climb)} / #${fastest.rank_pos}` : '-';
+      $('rankFontStyle').textContent = latest.font_css || '';
+    }
+
+    async function loadBooks() {
+      const params = new URLSearchParams({
+        source_id: state.sourceId,
+        tag: state.tag,
+        search: $('search').value.trim(),
+        order: $('order').value,
+        creation_status: $('creationStatus').value,
+        limit: '300'
+      });
+      const data = await api(`/api/books?${params.toString()}`);
+      state.books = data.books || [];
+      renderBooks();
+      updateExportLink();
+    }
+
+    function updateExportLink() {
+      const params = new URLSearchParams({
+        source_id: state.sourceId,
+        creation_status: $('creationStatus') ? $('creationStatus').value : ''
+      });
+      $('exportLink').href = `/api/export.csv?${params.toString()}`;
+      const source = state.sources.find(item => String(item.id) === String(state.sourceId));
+      $('tableTitle').textContent = source ? (source.name || source.url) : '全部榜单';
+    }
+
+    function renderBooks() {
+      const tbody = $('tbody');
+      tbody.innerHTML = '';
+      $('empty').hidden = state.books.length > 0;
+      $('tableMeta').textContent = `${state.books.length} 本`;
+      for (const book of state.books) {
+        const climb = book.rank_change_1d === null || book.rank_change_1d === undefined
+          ? book.rank_pos_diff
+          : book.rank_change_1d;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="rank">${book.rank_pos}</span></td>
+          <td><span class="climb ${climbClass(climb)}">${fmtClimb(climb)}</span></td>
+          <td>
+            <span class="book-title font-DNMrHsV173Pd4pgy">${escapeHtml(book.latest_title || '')}</span>
+            <span class="book-sub font-DNMrHsV173Pd4pgy">${escapeHtml(book.latest_chapter_title || '')}</span>
+          </td>
+          <td class="font-DNMrHsV173Pd4pgy">${escapeHtml(book.latest_author || '')}</td>
+          <td>${fmtNumber(book.read_count)}</td>
+          <td>${escapeHtml(book.creation_status_label || '-')}</td>
+          <td>${fmtNumber(book.days_seen)}</td>
+          <td>
+            <select class="inline-tag" data-book="${book.book_id}">
+              ${['待观察', '已选择', '不要'].map(tag => `<option value="${tag}" ${tag === book.status_tag ? 'selected' : ''}>${tag}</option>`).join('')}
+            </select>
+          </td>
+          <td><input class="inline-note" data-book="${book.book_id}" value="${escapeAttr(book.note || '')}"></td>
+          <td><a class="link" href="${book.latest_book_url}" target="_blank" rel="noreferrer">打开</a></td>
+        `;
+        tbody.appendChild(tr);
+      }
+      tbody.querySelectorAll('.inline-tag').forEach((select) => {
+        select.addEventListener('change', () => saveTag(select.dataset.book, select.value));
+      });
+      tbody.querySelectorAll('.inline-note').forEach((input) => {
+        input.addEventListener('change', () => {
+          const book = state.books.find(item => item.book_id === input.dataset.book);
+          saveTag(input.dataset.book, book ? book.status_tag : '待观察', input.value);
+        });
+      });
+    }
+
+    async function saveTag(bookId, statusTag, note) {
+      setStatus('保存中');
+      await api(`/api/books/${encodeURIComponent(bookId)}/tag`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status_tag: statusTag, note})
+      });
+      setStatus('已保存');
+      await loadSummary();
+      await loadBooks();
+    }
+
+    async function capture() {
+      const btn = $('captureBtn');
+      btn.disabled = true;
+      setStatus('抓取中');
+      try {
+        const result = await api('/api/snapshot', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            url: $('rankUrl').value.trim(),
+            limit: Number($('limit').value || 100)
+          })
+        });
+        setStatus(`已入库 ${result.entry_count} 本`);
+        await loadSources(result.source_id);
+        await loadSummary();
+        await loadBooks();
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replaceAll('`', '&#096;');
+    }
+
+    async function refreshAll() {
+      setStatus('加载中');
+      await loadSources();
+      await loadSummary();
+      await loadBooks();
+      setStatus('就绪');
+    }
+
+    $('captureBtn').addEventListener('click', () => capture().catch(err => {
+      setStatus('失败');
+      alert(err.message);
+      $('captureBtn').disabled = false;
+    }));
+    $('refreshBtn').addEventListener('click', () => refreshAll().catch(err => {
+      setStatus('失败');
+      alert(err.message);
+    }));
+    $('search').addEventListener('input', () => {
+      clearTimeout(window.__searchTimer);
+      window.__searchTimer = setTimeout(() => loadBooks().catch(err => alert(err.message)), 250);
+    });
+    $('order').addEventListener('change', () => loadBooks().catch(err => alert(err.message)));
+    $('creationStatus').addEventListener('change', () => {
+      updateExportLink();
+      loadBooks().catch(err => alert(err.message));
+    });
+    $('sourceSelect').addEventListener('change', () => {
+      state.sourceId = $('sourceSelect').value;
+      updateExportLink();
+      Promise.all([loadSummary(), loadBooks()]).catch(err => alert(err.message));
+    });
+    $('tagTabs').querySelectorAll('button').forEach((button) => {
+      button.addEventListener('click', () => {
+        $('tagTabs').querySelectorAll('button').forEach(item => item.classList.remove('active'));
+        button.classList.add('active');
+        state.tag = button.dataset.tag || '';
+        loadBooks().catch(err => alert(err.message));
+      });
+    });
+
+    refreshAll().catch(err => {
+      setStatus('未入库');
+      $('tbody').innerHTML = '';
+      $('empty').hidden = false;
+      console.warn(err);
+    });
+  </script>
+</body>
+</html>

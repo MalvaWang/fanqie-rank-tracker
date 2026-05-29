@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小说快速阅读 Agent</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #65717d;
+      --line: #d9dee5;
+      --paper: #f7f8fa;
+      --panel: #ffffff;
+      --accent: #0f766e;
+      --accent-2: #b42318;
+      --gold: #946200;
+      --blue: #1d4ed8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar {
+      width: min(1280px, calc(100% - 32px));
+      min-height: 64px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    main {
+      width: min(1280px, calc(100% - 32px));
+      margin: 20px auto 32px;
+      display: grid;
+      grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1.08fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      min-height: 48px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .section-body {
+      padding: 14px;
+    }
+
+    label {
+      display: block;
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input[type="text"] {
+      height: 38px;
+      padding: 8px 10px;
+    }
+
+    textarea {
+      min-height: 470px;
+      resize: vertical;
+      padding: 10px;
+      line-height: 1.65;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button,
+    .file-button {
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    input[type="file"] {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      opacity: 0;
+      overflow: hidden;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 76px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tab {
+      height: 30px;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(15, 118, 110, 0.08);
+    }
+
+    .output {
+      min-height: 590px;
+      white-space: pre-wrap;
+      line-height: 1.68;
+      font-size: 14px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 4px 0 12px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      min-height: 260px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 920px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding: 12px 0;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 360px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .tabs {
+        width: 100%;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>小说快速阅读 Agent</h1>
+      <div class="status"><span class="dot"></span><span>本地运行，文本不上传</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>授权文本输入</h2>
+        <div class="controls">
+          <label class="file-button" for="fileInput" title="导入本地 txt 或 md 文件">导入文件</label>
+          <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown">
+          <button id="sampleBtn" title="填入一段演示文本">示例</button>
+          <button id="clearBtn" title="清空输入">清空</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="field">
+          <label for="sourceInput">来源/授权备注</label>
+          <input id="sourceInput" type="text" placeholder="例如：已获作者授权；官方导出文件；自有作品">
+        </div>
+        <div class="field">
+          <label for="novelInput">小说正文</label>
+          <textarea id="novelInput" placeholder="把你有权使用的章节正文粘贴到这里。支持「第1章」「第一章」「Chapter 1」自动分章。"></textarea>
+        </div>
+        <div class="controls">
+          <button id="analyzeBtn" class="primary" title="生成快读报告">分析</button>
+          <button id="copyBtn" disabled title="复制当前报告">复制报告</button>
+          <button id="downloadMdBtn" disabled title="下载 Markdown 报告">下载 MD</button>
+          <button id="downloadJsonBtn" disabled title="下载结构化 JSON">下载 JSON</button>
+        </div>
+        <p class="note">这个页面用于处理你已经合法取得的文本；它不会登录、抓取或绕过任何平台阅读限制。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>快读结果</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="report">报告</button>
+          <button class="tab" data-tab="chapters">章节</button>
+          <button class="tab" data-tab="adaptation">改编</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="metrics">
+          <div class="metric"><strong id="chapterCount">0</strong><span>章节/片段</span></div>
+          <div class="metric"><strong id="wordCount">0</strong><span>字数估计</span></div>
+          <div class="metric"><strong id="characterCount">0</strong><span>疑似人物</span></div>
+        </div>
+        <div id="chips" class="chips"></div>
+        <div id="output" class="output empty">导入或粘贴文本后点击“分析”。</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const plotKeywords = [
+      "重生", "穿越", "系统", "契约", "婚", "离婚", "复仇", "报仇", "真相", "秘密",
+      "身份", "误会", "背叛", "陷害", "证据", "威胁", "交易", "选择", "决定", "救",
+      "死", "杀", "逃", "回家", "公司", "家族", "母亲", "父亲", "孩子", "爱", "恨"
+    ];
+    const adaptationKeywords = [
+      "冲突", "秘密", "真相", "证据", "身份", "打脸", "复仇", "背叛", "陷害", "误会",
+      "威胁", "离婚", "婚约", "重生", "穿越", "系统", "救", "死", "杀", "逃"
+    ];
+    const stopwords = new Set(["这个", "那个", "自己", "他们", "她们", "我们", "你们", "男人", "女人", "众人", "所有", "没有", "只是", "已经", "突然", "终于", "什么", "怎么"]);
+
+    const state = {
+      tab: "report",
+      analysis: null,
+      markdown: "",
+      json: ""
+    };
+
+    const sourceInput = document.querySelector("#sourceInput");
+    const novelInput = document.querySelector("#novelInput");
+    const output = document.querySelector("#output");
+    const chips = document.querySelector("#chips");
+    const chapterCount = document.querySelector("#chapterCount");
+    const wordCount = document.querySelector("#wordCount");
+    const characterCount = document.querySelector("#characterCount");
+    const copyBtn = document.querySelector("#copyBtn");
+    const downloadMdBtn = document.querySelector("#downloadMdBtn");
+    const downloadJsonBtn = document.querySelector("#downloadJsonBtn");
+
+    function cleanText(value) {
+      return value.replace(/\u3000/g, " ")
+        .replace(/[ \t\r\f\v]+/g, " ")
+        .replace(/\n\s+/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
+    function splitChapters(text) {
+      const cleaned = cleanText(text);
+      const pattern = /^\s*((?:第[零一二三四五六七八九十百千万\d]+[章节回幕集卷].*)|(?:Chapter\s+\d+.*))$/gim;
+      const matches = [...cleaned.matchAll(pattern)];
+      if (!matches.length) return [{ title: "全文片段", text: cleaned }];
+      const chapters = [];
+      if (matches[0].index > 0) {
+        const prologue = cleanText(cleaned.slice(0, matches[0].index));
+        if (prologue) chapters.push({ title: "卷首内容", text: prologue });
+      }
+      matches.forEach((match, index) => {
+        const start = match.index + match[0].length;
+        const end = index + 1 < matches.length ? matches[index + 1].index : cleaned.length;
+        const body = cleanText(cleaned.slice(start, end));
+        if (body) chapters.push({ title: cleanText(match[1]), text: body });
+      });
+      return chapters;
+    }
+
+    function splitSentences(text) {
+      return cleanText(text).split(/(?<=[。！？!?])\s*/).map(cleanText).filter(item => item.length >= 12 && item.length <= 180);
+    }
+
+    function scoreSentence(sentence, index, keywords) {
+      let score = keywords.reduce((sum, keyword) => sum + (sentence.includes(keyword) ? 1 : 0), 0);
+      if (sentence.includes("“") || sentence.includes("：") || sentence.includes(":")) score += 0.25;
+      if (/[！？!?]/.test(sentence)) score += 0.2;
+      return score - index * 0.003;
+    }
+
+    function pickSentences(text, keywords, limit) {
+      const scored = splitSentences(text).map((sentence, index) => ({
+        sentence,
+        index,
+        score: scoreSentence(sentence, index, keywords)
+      })).filter(item => item.score > 0);
+      const chosen = scored.sort((a, b) => b.score - a.score || a.index - b.index).slice(0, limit).sort((a, b) => a.index - b.index);
+      if (chosen.length) return chosen.map(item => item.sentence);
+      return splitSentences(text).slice(0, limit);
+    }
+
+    function extractTerms(text, keywords, limit = 12) {
+      return keywords.map(keyword => ({ keyword, count: (text.match(new RegExp(keyword, "g")) || []).length }))
+        .filter(item => item.count)
+        .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword, "zh-CN"))
+        .slice(0, limit)
+        .map(item => item.keyword);
+    }
+
+    function extractCharacters(text, limit = 12) {
+      const counts = new Map();
+      const patterns = [
+        /([\u4e00-\u9fa5]{2,4})(?:说|问|道|喊|叫|笑|哭|看|想|走|拿|推|抱|转身)/g,
+        /(?:叫|名叫|看到|拉住|拦住|望着)([\u4e00-\u9fa5]{2,4})/g,
+        /“[^”]{0,40}”([\u4e00-\u9fa5]{2,4})(?:说|问|道)/g
+      ];
+      patterns.forEach(pattern => {
+        for (const match of text.matchAll(pattern)) {
+          const name = match[1];
+          if (!stopwords.has(name) && ![...stopwords].some(word => name.includes(word))) {
+            counts.set(name, (counts.get(name) || 0) + 1);
+          }
+        }
+      });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN")).slice(0, limit).map(item => item[0]);
+    }
+
+    function adaptationNotes(text) {
+      return pickSentences(text, adaptationKeywords, 8).slice(0, 5).map(sentence => {
+        if (/[身份真相证据秘密]/.test(sentence)) return `信息钩子：${sentence}`;
+        if (/(背叛|陷害|误会|威胁)/.test(sentence)) return `冲突外化：${sentence}`;
+        if (/(复仇|重生|穿越|系统)/.test(sentence)) return `核心设定/爽点：${sentence}`;
+        return `可视化场面：${sentence}`;
+      });
+    }
+
+    function analyze(text) {
+      const chapters = splitChapters(text).map(chapter => ({
+        title: chapter.title,
+        wordCount: chapter.text.replace(/\s+/g, "").length,
+        summary: pickSentences(chapter.text, plotKeywords, 6),
+        highlights: pickSentences(chapter.text, adaptationKeywords, 5),
+        characters: extractCharacters(chapter.text),
+        keyTerms: extractTerms(chapter.text, plotKeywords),
+        adaptationNotes: adaptationNotes(chapter.text)
+      }));
+      return {
+        source: cleanText(sourceInput.value) || "未填写",
+        chapters
+      };
+    }
+
+    function aggregate(chapters, key, limit = 20) {
+      const counts = new Map();
+      chapters.forEach(chapter => chapter[key].forEach(value => counts.set(value, (counts.get(value) || 0) + 1)));
+      return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN")).slice(0, limit).map(item => item[0]);
+    }
+
+    function renderMarkdown(analysis) {
+      const totalWords = analysis.chapters.reduce((sum, chapter) => sum + chapter.wordCount, 0);
+      const hotCharacters = aggregate(analysis.chapters, "characters");
+      const hotTerms = aggregate(analysis.chapters, "keyTerms");
+      const lines = [
+        "# 小说快速阅读报告",
+        "",
+        `- 来源备注: ${analysis.source}`,
+        `- 分析章节数: ${analysis.chapters.length}`,
+        `- 字数估计: ${totalWords}`,
+        "",
+        "## 快速入口",
+        "",
+        `- 高频人物: ${hotCharacters.join("、") || "待补充"}`,
+        `- 高频剧情词: ${hotTerms.join("、") || "待补充"}`,
+        "",
+        "## 改编初筛",
+        "",
+        "- 保留：身份反差、强冲突、证据/秘密、复仇或情感兑现相关桥段。",
+        "- 删减：重复解释、长心理活动、不推动主线的日常段落。",
+        "- 合并：功能相近的配角、同类打脸或误会桥段。",
+        "- 前置：能制造前三集留存的危机、秘密、背叛、强选择。",
+        "- 外化：把心理变化改成动作、道具、对峙台词和可见选择。",
+        "",
+        "## 章节快读",
+        ""
+      ];
+      analysis.chapters.forEach((chapter, index) => {
+        lines.push(`### ${index + 1}. ${chapter.title}`, "");
+        lines.push(`- 字数估计: ${chapter.wordCount}`);
+        lines.push(`- 人物: ${chapter.characters.join("、") || "未识别"}`);
+        lines.push(`- 关键词: ${chapter.keyTerms.join("、") || "无"}`, "");
+        lines.push("剧情速读：", ...chapter.summary.map(item => `- ${item}`), "");
+        lines.push("改编抓手：", ...chapter.adaptationNotes.map(item => `- ${item}`), "");
+      });
+      return lines.join("\n");
+    }
+
+    function renderCurrentTab() {
+      if (!state.analysis) return;
+      const analysis = state.analysis;
+      const totalWords = analysis.chapters.reduce((sum, chapter) => sum + chapter.wordCount, 0);
+      const hotCharacters = aggregate(analysis.chapters, "characters");
+      const hotTerms = aggregate(analysis.chapters, "keyTerms");
+      chapterCount.textContent = analysis.chapters.length;
+      wordCount.textContent = totalWords;
+      characterCount.textContent = hotCharacters.length;
+      chips.innerHTML = [...hotCharacters.slice(0, 10), ...hotTerms.slice(0, 8)]
+        .map(item => `<span class="chip">${escapeHtml(item)}</span>`).join("");
+      output.classList.remove("empty");
+      if (state.tab === "report") {
+        output.textContent = state.markdown;
+      } else if (state.tab === "chapters") {
+        output.textContent = analysis.chapters.map((chapter, index) => [
+          `${index + 1}. ${chapter.title}`,
+          `人物：${chapter.characters.join("、") || "未识别"}`,
+          `关键词：${chapter.keyTerms.join("、") || "无"}`,
+          "",
+          "剧情速读：",
+          ...chapter.summary.map(item => `- ${item}`)
+        ].join("\n")).join("\n\n");
+      } else {
+        output.textContent = [
+          "改编诊断模板",
+          "",
+          "保留：身份反差、强冲突、证据/秘密、复仇或情感兑现相关桥段。",
+          "删减：重复解释、长心理活动、不推动主线的日常段落。",
+          "合并：功能相近的配角、同类打脸或误会桥段。",
+          "前置：能制造前三集留存的危机、秘密、背叛、强选择。",
+          "外化：把心理变化改成动作、道具、对峙台词和可见选择。",
+          "",
+          "章节改编抓手：",
+          ...analysis.chapters.flatMap((chapter, index) => [
+            "",
+            `${index + 1}. ${chapter.title}`,
+            ...chapter.adaptationNotes.map(item => `- ${item}`)
+          ])
+        ].join("\n");
+      }
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
+    }
+
+    function download(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.querySelector("#analyzeBtn").addEventListener("click", () => {
+      const text = cleanText(novelInput.value);
+      if (!text) {
+        output.className = "output empty";
+        output.textContent = "先粘贴或导入你有权使用的小说文本。";
+        return;
+      }
+      state.analysis = analyze(text);
+      state.markdown = renderMarkdown(state.analysis);
+      state.json = JSON.stringify(state.analysis, null, 2);
+      copyBtn.disabled = false;
+      downloadMdBtn.disabled = false;
+      downloadJsonBtn.disabled = false;
+      renderCurrentTab();
+    });
+
+    document.querySelector("#fileInput").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      novelInput.value = await file.text();
+      if (!sourceInput.value) sourceInput.value = file.name;
+    });
+
+    document.querySelector("#sampleBtn").addEventListener("click", () => {
+      sourceInput.value = "演示文本";
+      novelInput.value = `第一章 雨夜归来
+
+林晚站在医院走廊尽头，听见继妹在病房里低声说出了那个秘密。三年前的车祸不是意外，父亲留下的股权转让书也被人调了包。
+
+她握紧手机，屏幕上正停着母亲最后一条短信：别相信沈家人。
+
+沈淮推门出来，看见她苍白的脸，声音压得很低：“你都听见了？”
+
+林晚看着他，忽然笑了：“听见了，所以从今天起，该害怕的人不是我。”
+
+第二章 证据
+
+第二天董事会前，林晚把一只旧录音笔放进手包。继母派人堵在电梯口，威胁她只要敢出现，就让母亲的病历永远消失。
+
+林晚没有后退。她当着所有股东的面播放录音，会议室瞬间安静下来。沈淮却在这时按住她的手，说还有一份更重要的证据。`;
+    });
+
+    document.querySelector("#clearBtn").addEventListener("click", () => {
+      sourceInput.value = "";
+      novelInput.value = "";
+      state.analysis = null;
+      state.markdown = "";
+      state.json = "";
+      chapterCount.textContent = "0";
+      wordCount.textContent = "0";
+      characterCount.textContent = "0";
+      chips.innerHTML = "";
+      output.className = "output empty";
+      output.textContent = "导入或粘贴文本后点击“分析”。";
+      copyBtn.disabled = true;
+      downloadMdBtn.disabled = true;
+      downloadJsonBtn.disabled = true;
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(output.textContent);
+      copyBtn.textContent = "已复制";
+      setTimeout(() => copyBtn.textContent = "复制报告", 1200);
+    });
+
+    downloadMdBtn.addEventListener("click", () => download("quick_read_report.md", state.markdown, "text/markdown;charset=utf-8"));
+    downloadJsonBtn.addEventListener("click", () => download("quick_read_report.json", state.json, "application/json;charset=utf-8"));
+
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(item => item.classList.remove("active"));
+        tab.classList.add("active");
+        state.tab = tab.dataset.tab;
+        renderCurrentTab();
+      });
+    });
+  </script>
+</body>
+</html>

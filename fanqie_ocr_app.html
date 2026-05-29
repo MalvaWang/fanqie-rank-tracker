@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>章节采集工作台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #16202a;
+      --muted: #66727f;
+      --line: #d8dee6;
+      --accent: #1f7a68;
+      --accent-ink: #ffffff;
+      --warn: #9a5b12;
+      --bad: #b42318;
+      --good: #157347;
+      --code: #111827;
+      --code-bg: #eef1f5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 760;
+    }
+
+    .status-pill {
+      min-width: 112px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 7px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    section,
+    form {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+    }
+
+    form {
+      padding: 16px;
+    }
+
+    label {
+      display: block;
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    input[type="url"],
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--ink);
+      font: inherit;
+      background: #fff;
+    }
+
+    input:focus {
+      outline: 2px solid rgba(31, 122, 104, .22);
+      border-color: var(--accent);
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .checks {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .check input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      height: 38px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0 14px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    button.secondary {
+      background: #fff;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: .7;
+    }
+
+    section {
+      min-height: 160px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-title {
+      font-weight: 760;
+      font-size: 15px;
+    }
+
+    .body {
+      padding: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 70px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .metric strong {
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      color: var(--ink);
+      text-decoration: none;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    pre {
+      margin: 0;
+      min-height: 280px;
+      max-height: 520px;
+      overflow: auto;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code);
+      padding: 12px;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+
+    .ok {
+      color: var(--good);
+    }
+
+    .warn {
+      color: var(--warn);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100vw - 20px, 680px);
+        padding-top: 14px;
+      }
+
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .row,
+      .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>章节采集工作台</h1>
+      <div class="status-pill" id="statusPill">待启动</div>
+    </header>
+
+    <div class="grid">
+      <form id="crawlForm">
+        <div class="field">
+          <label for="url">采集 URL</label>
+          <input id="url" name="url" type="url" required value="https://fanqienovel.com/page/7639975242047179800">
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="start">起始序号</label>
+            <input id="start" name="start" type="number" min="1" value="1">
+          </div>
+          <div class="field">
+            <label for="end">结束序号</label>
+            <input id="end" name="end" type="number" min="0" value="0">
+          </div>
+          <div class="field">
+            <label for="limit">最多条目</label>
+            <input id="limit" name="limit" type="number" min="0" value="0">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="step">滚动步长</label>
+            <input id="step" name="step" type="number" min="320" value="620">
+          </div>
+          <div class="field">
+            <label for="loginTimeout">登录等待秒</label>
+            <input id="loginTimeout" name="loginTimeout" type="number" min="10" value="300">
+          </div>
+          <div class="field">
+            <label for="outputRoot">输出目录</label>
+            <input id="outputRoot" name="outputRoot" type="text" value="">
+          </div>
+        </div>
+
+        <div class="checks">
+          <label class="check"><input id="catalogOnly" type="checkbox"> 只读取目录</label>
+          <label class="check"><input id="screenshotsOnly" type="checkbox"> 只截图不 OCR</label>
+          <label class="check"><input id="skipExisting" type="checkbox"> 跳过已有章节</label>
+          <label class="check"><input id="headed" type="checkbox" checked> 打开浏览器窗口</label>
+        </div>
+
+        <div class="actions">
+          <button id="startBtn" type="submit">开始采集</button>
+          <button class="secondary" id="clearBtn" type="button">清空日志</button>
+        </div>
+
+        <div class="note" id="outputNote">自动识别番茄、ShortDramas、飞书 Wiki。输出会保存到项目目录下的采集结果文件夹。</div>
+      </form>
+
+      <section>
+        <div class="section-head">
+          <div class="section-title">结果</div>
+          <div id="jobId" class="note"></div>
+        </div>
+        <div class="body">
+          <div class="metrics">
+            <div class="metric"><span>目录条目</span><strong id="mChapters">-</strong></div>
+            <div class="metric"><span>成功正文</span><strong id="mVisible">-</strong></div>
+            <div class="metric"><span>告警条目</span><strong id="mBlocked">-</strong></div>
+            <div class="metric"><span>总字符</span><strong id="mChars">-</strong></div>
+          </div>
+          <div class="links" id="links"></div>
+          <pre id="log"></pre>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const form = document.querySelector("#crawlForm");
+    const startBtn = document.querySelector("#startBtn");
+    const clearBtn = document.querySelector("#clearBtn");
+    const logEl = document.querySelector("#log");
+    const statusPill = document.querySelector("#statusPill");
+    const jobIdEl = document.querySelector("#jobId");
+    const linksEl = document.querySelector("#links");
+    const outputNote = document.querySelector("#outputNote");
+    let currentJob = null;
+    let timer = null;
+
+    function detectSite(url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.endsWith("fanqienovel.com")) return "fanqie";
+        if (parsed.hostname.endsWith("shortdramas.com")) return "shortdramas";
+        if (parsed.hostname.endsWith("feishu.cn") && parsed.pathname.startsWith("/wiki/")) return "feishu";
+      } catch (error) {
+        return "unknown";
+      }
+      return "unknown";
+    }
+
+    function siteName(site) {
+      return { fanqie: "番茄小说", shortdramas: "ShortDramas", feishu: "飞书 Wiki", unknown: "未识别" }[site] || site;
+    }
+
+    function valueNumber(id) {
+      const value = Number(document.querySelector(id).value);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function payload() {
+      return {
+        url: document.querySelector("#url").value.trim(),
+        output_root: document.querySelector("#outputRoot").value.trim(),
+        start: valueNumber("#start"),
+        end: valueNumber("#end"),
+        limit: valueNumber("#limit"),
+        step: valueNumber("#step"),
+        login_timeout: valueNumber("#loginTimeout"),
+        catalog_only: document.querySelector("#catalogOnly").checked,
+        screenshots_only: document.querySelector("#screenshotsOnly").checked,
+        skip_existing: document.querySelector("#skipExisting").checked,
+        headed: document.querySelector("#headed").checked
+      };
+    }
+
+    function refreshSiteHints() {
+      const site = detectSite(document.querySelector("#url").value.trim());
+      const defaults = {
+        fanqie: "fanqie_book_ocr",
+        shortdramas: "shortdramas_kb",
+        feishu: "feishu_wiki_crawl"
+      };
+      const hints = {
+        fanqie: "番茄走目录 + 截图 OCR；起止序号按章节号过滤。",
+        shortdramas: "ShortDramas 走登录态浏览器 DOM；起止序号按页面可见章节顺序过滤。",
+        feishu: "飞书 Wiki 走目录树 + 滚动正文；起止序号按子文档顺序过滤。",
+        unknown: "支持 fanqienovel.com、shortdramas.com、my.feishu.cn/wiki。"
+      };
+      outputNote.textContent = `${siteName(site)}：${hints[site] || hints.unknown}`;
+      if (!document.querySelector("#outputRoot").value.trim() && defaults[site]) {
+        document.querySelector("#outputRoot").placeholder = defaults[site];
+      }
+      const fanqieOnly = site === "fanqie" || site === "unknown";
+      document.querySelector("#screenshotsOnly").disabled = !fanqieOnly;
+      document.querySelector("#skipExisting").disabled = !fanqieOnly;
+    }
+
+    function setStatus(status) {
+      const label = status === "running" ? "运行中" : status === "done" ? "完成" : status === "failed" ? "失败" : "待启动";
+      statusPill.textContent = label;
+      statusPill.className = "status-pill " + (status === "done" ? "ok" : status === "failed" ? "bad" : status === "running" ? "warn" : "");
+      startBtn.disabled = status === "running";
+    }
+
+    function setMetric(id, value) {
+      document.querySelector(id).textContent = value ?? "-";
+    }
+
+    function render(job) {
+      currentJob = job.id;
+      setStatus(job.status);
+      jobIdEl.textContent = job.id ? `任务 ${job.id.slice(0, 8)}` : "";
+      logEl.textContent = (job.log || []).join("\n");
+      logEl.scrollTop = logEl.scrollHeight;
+
+      const summary = job.summary || {};
+      const warningCount = Array.isArray(summary.warnings)
+        ? summary.warnings.length
+        : Array.isArray(summary.blocked_or_truncated_chapters)
+          ? summary.blocked_or_truncated_chapters.length
+          : "-";
+      const totalItems = summary.chapters ?? summary.catalog_count_on_detail_page ?? summary.child_doc_count_in_tree ?? summary.chapter_count ?? summary.captured_doc_count;
+      const completed = summary.complete_or_visible_chapters ?? summary.completed_chapter_count ?? summary.captured_doc_count;
+      const chars = summary.total_clean_chars ?? summary.total_characters;
+      setMetric("#mChapters", totalItems);
+      setMetric("#mVisible", completed);
+      setMetric("#mBlocked", warningCount);
+      setMetric("#mChars", chars);
+
+      linksEl.innerHTML = "";
+      const linkLabels = { book: "合并正文", summary: "采集摘要", catalog: "目录", index: "OCR 索引", chapters: "章节 JSON", docs: "文档 JSON", tree: "飞书目录树" };
+      Object.entries(job.links || {}).forEach(([key, href]) => {
+        const a = document.createElement("a");
+        a.href = href;
+        a.target = "_blank";
+        a.rel = "noreferrer";
+        a.textContent = linkLabels[key] || key;
+        linksEl.appendChild(a);
+      });
+    }
+
+    async function poll() {
+      if (!currentJob) return;
+      const res = await fetch(`/api/jobs/${currentJob}`);
+      const job = await res.json();
+      render(job);
+      if (job.status !== "running") {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("running");
+      linksEl.innerHTML = "";
+      logEl.textContent = "";
+      const res = await fetch("/api/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload())
+      });
+      const job = await res.json();
+      if (!res.ok) {
+        setStatus("failed");
+        logEl.textContent = job.error || "启动失败";
+        return;
+      }
+      render(job);
+      timer = setInterval(poll, 1200);
+    });
+
+    clearBtn.addEventListener("click", () => {
+      logEl.textContent = "";
+    });
+
+    document.querySelector("#url").addEventListener("input", refreshSiteHints);
+    refreshSiteHints();
+  </script>
+</body>
+</html>

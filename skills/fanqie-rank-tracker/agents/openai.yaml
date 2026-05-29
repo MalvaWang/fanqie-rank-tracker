@@ -1,0 +1,4 @@
+interface:
+  display_name: "番茄榜单追踪"
+  short_description: "每日抓取番茄榜单，沉淀 SQLite 快照并分析爬榜速度。"
+  default_prompt: "抓取番茄榜单 URL，保存每日快照，查看爬榜最快的书，并维护待观察、已选择、不要状态。"

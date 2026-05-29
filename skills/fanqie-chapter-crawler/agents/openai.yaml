@@ -1,0 +1,6 @@
+interface:
+  display_name: "番茄章节采集"
+  short_description: "输入番茄书籍页 URL，批量采集章节正文与质检结果"
+  default_prompt: "Use $fanqie-chapter-crawler to collect all chapters from this Fanqie book URL."
+policy:
+  allow_implicit_invocation: true
