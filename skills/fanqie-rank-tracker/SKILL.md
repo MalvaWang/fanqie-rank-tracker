@@ -11,7 +11,7 @@ Use the project root script as the single source of truth:
 python3 fanqie_rank_agent.py snapshot "https://fanqienovel.com/rank/1_2_1141" --limit 100
 python3 fanqie_rank_agent.py snapshot-all "https://fanqienovel.com/rank/1_2_1141" --limit 100
 python3 fanqie_rank_agent.py report --limit 30
-python3 fanqie_rank_agent.py email-push --top 10
+python3 fanqie_rank_agent.py static-report --top 30
 python3 fanqie_rank_agent.py serve --port 8791
 ```
 
@@ -27,7 +27,7 @@ fanqie_rank_tracker/rank_tracker.sqlite3
 2. To cover every menu category, run `snapshot-all`. It discovers all `/rank/{gender}_{rankMold}_{category}` links from the ranking menu before capturing.
 3. For fastest-climbing books, run `report` or query the local page. Ranking speed uses previous stored snapshots when available, otherwise Fanqie's `rankPosDiff` field for the current list.
 4. For human curation, use the local page or `tag BOOK_ID 待观察|已选择|不要 --note ...`.
-5. For email notifications, run `email-push`. Use `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_TO`, and optional mail settings; never hard-code them.
+5. For no-secret GitHub review, run `static-report`. It writes `reports/latest.md`, `reports/latest.html`, `reports/latest.json`, `docs/index.html`, and `docs/latest.json`.
 6. To let the user review interactively, start `serve` and give them `http://127.0.0.1:8791`.
 
 ## Notes

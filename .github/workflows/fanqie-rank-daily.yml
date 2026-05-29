@@ -35,35 +35,24 @@ jobs:
             --limit 100 \
             --timeout 30
 
-      - name: Commit updated SQLite database
+      - name: Generate static report page
+        run: |
+          python3 fanqie_rank_agent.py static-report --top 30
+
+      - name: Commit updated database and report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add fanqie_rank_tracker/rank_tracker.sqlite3
+          git add \
+            fanqie_rank_tracker/rank_tracker.sqlite3 \
+            reports/latest.md \
+            reports/latest.html \
+            reports/latest.json \
+            docs/index.html \
+            docs/latest.json
           if git diff --cached --quiet; then
-            echo "No database changes to commit."
+            echo "No database or report changes to commit."
           else
-            git commit -m "chore: update fanqie rank snapshot $(date -u +'%Y-%m-%d')"
+            git commit -m "chore: update fanqie rank report $(date -u +'%Y-%m-%d')"
             git push
           fi
-
-      - name: Send email report
-        env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
-          SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_SUBJECT: ${{ secrets.EMAIL_SUBJECT }}
-        run: |
-          export SMTP_HOST="${SMTP_HOST:-smtp.gmail.com}"
-          export SMTP_PORT="${SMTP_PORT:-587}"
-          export SMTP_USE_TLS="${SMTP_USE_TLS:-true}"
-          if [ -z "$SMTP_USERNAME" ] || [ -z "$SMTP_PASSWORD" ] || [ -z "$EMAIL_TO" ]; then
-            echo "SMTP_USERNAME, SMTP_PASSWORD, or EMAIL_TO secret is not set; skipping email report."
-            exit 0
-          fi
-          python3 fanqie_rank_agent.py email-push --top 10

@@ -5,6 +5,8 @@ from pathlib import Path
 
 from fanqie_rank_agent import (
     RankSource,
+    build_markdown_report,
+    build_static_report_data,
     connect_db,
     extract_initial_state,
     extract_rank_sources,
@@ -62,6 +64,21 @@ class FanqieRankAgentTests(unittest.TestCase):
                 selected = query_books(conn, tag="已选择")
                 self.assertEqual(len(selected), 1)
                 self.assertEqual(selected[0]["note"], "重点看")
+
+    def test_static_report_generation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db = root / "rank.sqlite3"
+            source = RankSource("https://fanqienovel.com/rank/1_2_1141", 1, 2, 1141, "西方奇幻")
+            rows = [
+                {"bookId": "a", "bookName": "A|书", "author": "AA", "currentPos": 3, "rankPosDiff": 8, "read_count": "1000"},
+            ]
+            with connect_db(db) as conn:
+                save_snapshot(conn, source, {"rank_version": "1", "total_num": 1}, rows, "2026-05-29")
+                data = build_static_report_data(conn, top=1)
+            markdown = build_markdown_report(data)
+            self.assertIn("番茄榜单日报 2026-05-29", markdown)
+            self.assertIn("A\\|书", markdown)
 
 
 if __name__ == "__main__":

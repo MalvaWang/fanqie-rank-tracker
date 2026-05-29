@@ -832,6 +832,294 @@ def build_rank_report(
     return "\n".join(lines)
 
 
+def climb_value(item: dict[str, Any]) -> int:
+    climb = item.get("rank_change_1d")
+    if climb is None:
+        climb = item.get("rank_pos_diff")
+    return safe_int(climb)
+
+
+def climb_label(item: dict[str, Any]) -> str:
+    climb = climb_value(item)
+    return f"+{climb}" if climb > 0 else str(climb)
+
+
+def markdown_cell(value: Any) -> str:
+    text = str(value or "").replace("\n", " ")
+    return text.replace("|", "\\|")
+
+
+def build_static_report_data(
+    conn: sqlite3.Connection,
+    top: int = 30,
+    source_id: int | None = None,
+    completed_only: bool = False,
+) -> dict[str, Any]:
+    creation_status = "0" if completed_only else ""
+    summary = query_summary(conn, source_id=source_id)
+    books = query_books(conn, source_id=source_id, order="fastest", creation_status=creation_status, limit=top)
+    latest = summary.get("latest_snapshot") or {}
+    return {
+        "generated_at": now_iso(),
+        "snapshot_date": latest.get("snapshot_date") or dt.date.today().isoformat(),
+        "top": top,
+        "completed_only": completed_only,
+        "summary": summary,
+        "books": [public_book(item) for item in books],
+    }
+
+
+def build_markdown_report(data: dict[str, Any]) -> str:
+    title = f"番茄榜单日报 {data.get('snapshot_date')}"
+    if data.get("completed_only"):
+        title += "（已完结）"
+    summary = data.get("summary") or {}
+    books = data.get("books") or []
+    lines = [
+        f"# {title}",
+        "",
+        f"- 生成时间：{data.get('generated_at')}",
+        f"- 榜单源：{summary.get('snapshot_count', 0)} 个",
+        f"- 入库记录：{summary.get('book_count', 0)} 本",
+        f"- 展示数量：Top {data.get('top', len(books))}",
+        "",
+        "| # | 书名 | 爬升 | 榜位 | 榜单 | 在读 | 状态 | 链接 |",
+        "|---:|---|---:|---:|---|---:|---|---|",
+    ]
+    if not books:
+        lines.append("| - | 暂无榜单数据 | - | - | - | - | - | - |")
+    for index, item in enumerate(books, start=1):
+        url = str(item.get("latest_book_url") or "")
+        title_cell = markdown_cell(item.get("latest_title") or item.get("book_id"))
+        link_cell = f"[打开]({url})" if url else "-"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(index),
+                    title_cell,
+                    climb_label(item),
+                    str(item.get("rank_pos") or "-"),
+                    markdown_cell(item.get("source_name")),
+                    f"{safe_int(item.get('read_count')):,}",
+                    markdown_cell(item.get("creation_status_label")),
+                    link_cell,
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "> 注：番茄书名有字体混淆，报告里可能显示为怪字；链接和排名数据不受影响。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def build_html_report(data: dict[str, Any]) -> str:
+    title = f"番茄榜单日报 {data.get('snapshot_date')}"
+    if data.get("completed_only"):
+        title += "（已完结）"
+    summary = data.get("summary") or {}
+    books = data.get("books") or []
+    generated = html.escape(str(data.get("generated_at") or ""))
+    rows = []
+    for index, item in enumerate(books, start=1):
+        url = html.escape(str(item.get("latest_book_url") or ""))
+        name = html.escape(str(item.get("latest_title") or item.get("book_id") or ""))
+        link = f'<a href="{url}" target="_blank" rel="noopener">打开</a>' if url else "-"
+        rows.append(
+            "<tr>"
+            f"<td>{index}</td>"
+            f"<td class=\"title\">{name}</td>"
+            f"<td class=\"climb\">{html.escape(climb_label(item))}</td>"
+            f"<td>{html.escape(str(item.get('rank_pos') or '-'))}</td>"
+            f"<td>{html.escape(str(item.get('source_name') or ''))}</td>"
+            f"<td>{safe_int(item.get('read_count')):,}</td>"
+            f"<td>{html.escape(str(item.get('creation_status_label') or ''))}</td>"
+            f"<td>{link}</td>"
+            "</tr>"
+        )
+    if not rows:
+        rows.append('<tr><td colspan="8">暂无榜单数据</td></tr>')
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(title)}</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #1f2328;
+      --muted: #667085;
+      --line: #d8dee4;
+      --accent: #0969da;
+      --rise: #cf222e;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }}
+    main {{
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 18px 48px;
+    }}
+    h1 {{
+      margin: 0 0 10px;
+      font-size: clamp(24px, 4vw, 38px);
+      letter-spacing: 0;
+    }}
+    .meta {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0 22px;
+    }}
+    .pill {{
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      padding: 7px 11px;
+      color: var(--muted);
+      font-size: 14px;
+    }}
+    .table-wrap {{
+      overflow-x: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }}
+    table {{
+      width: 100%;
+      min-width: 880px;
+      border-collapse: collapse;
+    }}
+    th, td {{
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }}
+    th {{
+      color: var(--muted);
+      font-weight: 600;
+      background: #fbfbfc;
+    }}
+    td:first-child, th:first-child, td:nth-child(3), th:nth-child(3), td:nth-child(4), th:nth-child(4), td:nth-child(6), th:nth-child(6) {{
+      text-align: right;
+      white-space: nowrap;
+    }}
+    .title {{
+      min-width: 240px;
+      font-weight: 600;
+    }}
+    .climb {{
+      color: var(--rise);
+      font-weight: 700;
+    }}
+    a {{
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }}
+    a:hover {{ text-decoration: underline; }}
+    .note {{
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 14px;
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{html.escape(title)}</h1>
+    <div class="meta">
+      <span class="pill">生成时间：{generated}</span>
+      <span class="pill">榜单源：{safe_int(summary.get('snapshot_count'))} 个</span>
+      <span class="pill">入库记录：{safe_int(summary.get('book_count')):,} 本</span>
+      <span class="pill">Top {safe_int(data.get('top'))}</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>书名</th>
+            <th>爬升</th>
+            <th>榜位</th>
+            <th>榜单</th>
+            <th>在读</th>
+            <th>状态</th>
+            <th>链接</th>
+          </tr>
+        </thead>
+        <tbody>
+          {''.join(rows)}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">注：番茄书名有字体混淆，报告里可能显示为怪字；链接和排名数据不受影响。</p>
+  </main>
+</body>
+</html>
+"""
+
+
+def resolve_output_path(path_text: str) -> Path:
+    path = Path(path_text).expanduser()
+    if path.is_absolute():
+        return path
+    return ROOT / path
+
+
+def write_static_report(
+    db_path: Path,
+    *,
+    output_dir: Path,
+    docs_dir: Path | None = None,
+    top: int = 30,
+    source_id: int | None = None,
+    completed_only: bool = False,
+) -> dict[str, str]:
+    with connect_db(db_path) as conn:
+        data = build_static_report_data(conn, top=top, source_id=source_id, completed_only=completed_only)
+    markdown = build_markdown_report(data)
+    html_report = build_html_report(data)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latest.md"
+    html_path = output_dir / "latest.html"
+    json_path = output_dir / "latest.json"
+    markdown_path.write_text(markdown, encoding="utf-8")
+    html_path.write_text(html_report, encoding="utf-8")
+    json_path.write_bytes(json_bytes(data))
+
+    result = {
+        "markdown": str(markdown_path),
+        "html": str(html_path),
+        "json": str(json_path),
+    }
+    if docs_dir:
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        docs_index = docs_dir / "index.html"
+        docs_json = docs_dir / "latest.json"
+        docs_index.write_text(html_report, encoding="utf-8")
+        docs_json.write_bytes(json_bytes(data))
+        result["docs_index"] = str(docs_index)
+        result["docs_json"] = str(docs_json)
+    return result
+
+
 def build_feishu_report(
     conn: sqlite3.Connection,
     top: int = 10,
@@ -1160,6 +1448,13 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--completed-only", action="store_true", help="只导出已完结作品。")
     export.add_argument("--output", default="")
 
+    static_report = sub.add_parser("static-report", help="生成 GitHub 可直接查看的静态日报页面。")
+    static_report.add_argument("--output", default="reports")
+    static_report.add_argument("--docs-output", default="docs")
+    static_report.add_argument("--top", type=int, default=30)
+    static_report.add_argument("--source-id", type=int, default=0)
+    static_report.add_argument("--completed-only", action="store_true", help="只展示已完结作品。")
+
     feishu = sub.add_parser("feishu-push", aliases=["push-feishu"], help="推送爬榜日报到飞书自定义机器人。")
     feishu.add_argument("--webhook", default=os.environ.get("FEISHU_WEBHOOK", ""))
     feishu.add_argument("--secret", default=os.environ.get("FEISHU_SECRET", ""))
@@ -1264,6 +1559,17 @@ def main(argv: list[str]) -> int:
                 creation_status="0" if args.completed_only else "",
             )
         print(path)
+        return 0
+    if command == "static-report":
+        result = write_static_report(
+            db_path,
+            output_dir=resolve_output_path(args.output),
+            docs_dir=resolve_output_path(args.docs_output) if args.docs_output else None,
+            top=args.top,
+            source_id=args.source_id or None,
+            completed_only=args.completed_only,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     if command in {"feishu-push", "push-feishu"}:
         result = push_feishu_report(

@@ -2,6 +2,8 @@
 
 一个面向“短剧编剧学习资料收集”的轻量网页采集 agent。
 
+番茄榜单每日观察入口：[reports/latest.md](reports/latest.md)
+
 它可以：
 
 - 输入一个网页/合集 URL
@@ -186,45 +188,26 @@ python3 fanqie_rank_agent.py serve --port 8791
 python3 fanqie_rank_agent.py report --limit 30
 ```
 
-邮件推送日报：
+生成 GitHub 可直接查看的日报页面：
 
 ```bash
-SMTP_HOST="smtp.gmail.com" \
-SMTP_PORT="587" \
-SMTP_USERNAME="your@gmail.com" \
-SMTP_PASSWORD="Gmail应用专用密码" \
-EMAIL_TO="target@email.com" \
-python3 fanqie_rank_agent.py email-push --top 10
+python3 fanqie_rank_agent.py static-report --top 30
 ```
 
-Gmail 不能直接使用登录密码。需要先给 Google 账号开启两步验证，然后在 Google 账号的“应用专用密码”页面生成一个专用密码，把这串密码放进 `SMTP_PASSWORD`。
-
-如果改用 Gmail 的 465 端口，额外设置：
-
-```bash
-SMTP_PORT="465"
-SMTP_USE_SSL="true"
-```
+输出会更新 `reports/latest.md`、`reports/latest.html` 和 `docs/index.html`。在 GitHub 仓库里打开 `reports/latest.md` 就能直接查看每日 Top 榜单。
 
 ### GitHub Actions 定时运行
 
-已提供 `.github/workflows/fanqie-rank-daily.yml`，默认每天北京时间 16:10 运行：
+已提供 `.github/workflows/fanqie-rank-daily.yml`，默认每天北京时间 16:10 运行，不需要任何 Secret：
 
 1. 抓取全部番茄榜单源。
 2. 更新并提交 `fanqie_rank_tracker/rank_tracker.sqlite3`。
-3. 推送爬榜最快 Top 10 到邮箱。
+3. 生成并提交 `reports/latest.md` 和 `docs/index.html`。
 
-需要在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions -> New repository secret` 中添加：
+每日查看入口：
 
-- `SMTP_USERNAME`：Gmail 地址，例如 `your@gmail.com`。
-- `SMTP_PASSWORD`：Gmail 应用专用密码，不要填 Google 登录密码。
-- `EMAIL_TO`：收件邮箱，多个邮箱可用英文逗号分隔。
-- `SMTP_HOST`：可选，默认 `smtp.gmail.com`。
-- `SMTP_PORT`：可选，默认 `587`。
-- `EMAIL_FROM`：可选，默认使用 `SMTP_USERNAME`。
-- `EMAIL_SUBJECT`：可选，自定义邮件标题。
-- `SMTP_USE_SSL`：可选，使用 `465` 端口时设为 `true`。
-- `SMTP_USE_TLS`：可选，默认 `true`。
+- GitHub Markdown 报告：`reports/latest.md`
+- 静态 HTML 报告：`docs/index.html`
 
 项目内 Skill 入口：
 
