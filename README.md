@@ -189,15 +189,17 @@ python3 fanqie_rank_agent.py report --limit 30
 邮件推送日报：
 
 ```bash
-SMTP_HOST="smtp.example.com" \
+SMTP_HOST="smtp.gmail.com" \
 SMTP_PORT="587" \
-SMTP_USERNAME="your@email.com" \
-SMTP_PASSWORD="邮箱授权码" \
+SMTP_USERNAME="your@gmail.com" \
+SMTP_PASSWORD="Gmail应用专用密码" \
 EMAIL_TO="target@email.com" \
 python3 fanqie_rank_agent.py email-push --top 10
 ```
 
-常见邮箱通常不能直接用登录密码，需要在邮箱设置里开启 SMTP/IMAP，并生成“授权码”或“应用专用密码”。如果服务商要求 465 端口，额外设置：
+Gmail 不能直接使用登录密码。需要先给 Google 账号开启两步验证，然后在 Google 账号的“应用专用密码”页面生成一个专用密码，把这串密码放进 `SMTP_PASSWORD`。
+
+如果改用 Gmail 的 465 端口，额外设置：
 
 ```bash
 SMTP_PORT="465"
@@ -214,15 +216,15 @@ SMTP_USE_SSL="true"
 
 需要在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions -> New repository secret` 中添加：
 
-- `SMTP_HOST`：SMTP 服务器，例如 `smtp.gmail.com`、`smtp.qq.com`、`smtp.163.com`。
-- `SMTP_PORT`：可选，默认 `587`。SSL 邮箱常用 `465`。
-- `SMTP_USERNAME`：邮箱账号。
-- `SMTP_PASSWORD`：邮箱 SMTP 授权码或应用专用密码，不要填登录密码。
-- `EMAIL_FROM`：可选，默认使用 `SMTP_USERNAME`。
+- `SMTP_USERNAME`：Gmail 地址，例如 `your@gmail.com`。
+- `SMTP_PASSWORD`：Gmail 应用专用密码，不要填 Google 登录密码。
 - `EMAIL_TO`：收件邮箱，多个邮箱可用英文逗号分隔。
+- `SMTP_HOST`：可选，默认 `smtp.gmail.com`。
+- `SMTP_PORT`：可选，默认 `587`。
+- `EMAIL_FROM`：可选，默认使用 `SMTP_USERNAME`。
 - `EMAIL_SUBJECT`：可选，自定义邮件标题。
-- `SMTP_USE_SSL`：可选，`465` 端口通常设为 `true`。
-- `SMTP_USE_TLS`：可选，`587` 端口默认使用 STARTTLS。
+- `SMTP_USE_SSL`：可选，使用 `465` 端口时设为 `true`。
+- `SMTP_USE_TLS`：可选，默认 `true`。
 
 项目内 Skill 入口：
 
