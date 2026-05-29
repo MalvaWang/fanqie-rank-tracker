@@ -2,7 +2,7 @@
 
 一个面向“短剧编剧学习资料收集”的轻量网页采集 agent。
 
-番茄榜单每日观察入口：[reports/latest.md](reports/latest.md)
+番茄榜单每日观察入口：[可筛选网页](https://malvawang.github.io/fanqie-rank-tracker/) / [Markdown 报告](reports/latest.md)
 
 它可以：
 
