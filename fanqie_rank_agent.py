@@ -14,12 +14,14 @@ import json
 import mimetypes
 import os
 import re
+import smtplib
 import sqlite3
 import sys
 import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from email.message import EmailMessage
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -787,7 +789,7 @@ def feishu_sign(secret: str, timestamp: str) -> str:
     return base64.b64encode(digest).decode("utf-8")
 
 
-def build_feishu_report(
+def build_rank_report(
     conn: sqlite3.Connection,
     top: int = 10,
     source_id: int | None = None,
@@ -826,8 +828,17 @@ def build_feishu_report(
             ]
         )
     lines.append("")
-    lines.append("注：番茄书名有字体混淆，飞书里可能显示为怪字；链接和排名数据不受影响。")
+    lines.append("注：番茄书名有字体混淆，通知里可能显示为怪字；链接和排名数据不受影响。")
     return "\n".join(lines)
+
+
+def build_feishu_report(
+    conn: sqlite3.Connection,
+    top: int = 10,
+    source_id: int | None = None,
+    completed_only: bool = False,
+) -> str:
+    return build_rank_report(conn, top=top, source_id=source_id, completed_only=completed_only)
 
 
 def send_feishu_text(webhook: str, text: str, secret: str = "", timeout: int = 20) -> dict[str, Any]:
@@ -874,6 +885,99 @@ def push_feishu_report(
     if not webhook:
         raise ValueError("缺少飞书 Webhook。请设置 FEISHU_WEBHOOK 或传入 --webhook。")
     response = send_feishu_text(webhook, report, secret=secret, timeout=timeout)
+    return {"ok": True, "response": response}
+
+
+def parse_bool(value: str, default: bool = False) -> bool:
+    if value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def split_recipients(value: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[;,]", value) if part.strip()]
+
+
+def send_email_text(
+    *,
+    smtp_host: str,
+    smtp_port: int,
+    smtp_username: str,
+    smtp_password: str,
+    mail_from: str,
+    mail_to: list[str],
+    subject: str,
+    body: str,
+    use_ssl: bool = False,
+    use_tls: bool = True,
+    timeout: int = 30,
+) -> dict[str, Any]:
+    if not smtp_host:
+        raise ValueError("缺少 SMTP_HOST。")
+    if not mail_from:
+        raise ValueError("缺少 EMAIL_FROM；也可以设置 SMTP_USERNAME 作为默认发件人。")
+    if not mail_to:
+        raise ValueError("缺少 EMAIL_TO。")
+
+    message = EmailMessage()
+    message["From"] = mail_from
+    message["To"] = ", ".join(mail_to)
+    message["Subject"] = subject
+    message.set_content(body)
+
+    smtp_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+    with smtp_cls(smtp_host, smtp_port, timeout=timeout) as smtp:
+        if not use_ssl and use_tls:
+            smtp.starttls()
+        if smtp_username or smtp_password:
+            smtp.login(smtp_username, smtp_password)
+        smtp.send_message(message)
+    return {"sent": True, "to": mail_to, "subject": subject}
+
+
+def push_email_report(
+    db_path: Path,
+    *,
+    smtp_host: str,
+    smtp_port: int = 587,
+    smtp_username: str = "",
+    smtp_password: str = "",
+    mail_from: str = "",
+    mail_to: str = "",
+    subject: str = "",
+    top: int = 10,
+    source_id: int | None = None,
+    completed_only: bool = False,
+    dry_run: bool = False,
+    use_ssl: bool = False,
+    use_tls: bool = True,
+    timeout: int = 30,
+) -> dict[str, Any]:
+    with connect_db(db_path) as conn:
+        report = build_rank_report(conn, top=top, source_id=source_id, completed_only=completed_only)
+    if not subject:
+        subject = f"番茄榜单日报 Top {top}"
+        if completed_only:
+            subject += "（已完结）"
+    if dry_run:
+        print(f"Subject: {subject}\n")
+        print(report)
+        return {"dry_run": True, "message": report}
+
+    recipients = split_recipients(mail_to)
+    response = send_email_text(
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        smtp_username=smtp_username,
+        smtp_password=smtp_password,
+        mail_from=mail_from or smtp_username,
+        mail_to=recipients,
+        subject=subject,
+        body=report,
+        use_ssl=use_ssl,
+        use_tls=use_tls,
+        timeout=timeout,
+    )
     return {"ok": True, "response": response}
 
 
@@ -1064,6 +1168,22 @@ def build_parser() -> argparse.ArgumentParser:
     feishu.add_argument("--completed-only", action="store_true", help="只推送已完结作品。")
     feishu.add_argument("--dry-run", action="store_true", help="只打印消息内容，不发送。")
     feishu.add_argument("--timeout", type=int, default=20)
+
+    email_push = sub.add_parser("email-push", aliases=["push-email"], help="推送爬榜日报到邮箱。")
+    email_push.add_argument("--smtp-host", default=os.environ.get("SMTP_HOST", ""))
+    email_push.add_argument("--smtp-port", type=int, default=safe_int(os.environ.get("SMTP_PORT"), 587))
+    email_push.add_argument("--smtp-username", default=os.environ.get("SMTP_USERNAME", ""))
+    email_push.add_argument("--smtp-password", default=os.environ.get("SMTP_PASSWORD", ""))
+    email_push.add_argument("--from", dest="mail_from", default=os.environ.get("EMAIL_FROM", ""))
+    email_push.add_argument("--to", dest="mail_to", default=os.environ.get("EMAIL_TO", ""))
+    email_push.add_argument("--subject", default=os.environ.get("EMAIL_SUBJECT", ""))
+    email_push.add_argument("--top", type=int, default=10)
+    email_push.add_argument("--source-id", type=int, default=0)
+    email_push.add_argument("--completed-only", action="store_true", help="只推送已完结作品。")
+    email_push.add_argument("--dry-run", action="store_true", help="只打印邮件内容，不发送。")
+    email_push.add_argument("--use-ssl", action="store_true", default=parse_bool(os.environ.get("SMTP_USE_SSL", ""), False))
+    email_push.add_argument("--no-tls", action="store_true", default=not parse_bool(os.environ.get("SMTP_USE_TLS", ""), True))
+    email_push.add_argument("--timeout", type=int, default=30)
     return parser
 
 
@@ -1154,6 +1274,27 @@ def main(argv: list[str]) -> int:
             source_id=args.source_id or None,
             completed_only=args.completed_only,
             dry_run=args.dry_run,
+            timeout=args.timeout,
+        )
+        if not args.dry_run:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if command in {"email-push", "push-email"}:
+        result = push_email_report(
+            db_path,
+            smtp_host=args.smtp_host,
+            smtp_port=args.smtp_port,
+            smtp_username=args.smtp_username,
+            smtp_password=args.smtp_password,
+            mail_from=args.mail_from,
+            mail_to=args.mail_to,
+            subject=args.subject,
+            top=args.top,
+            source_id=args.source_id or None,
+            completed_only=args.completed_only,
+            dry_run=args.dry_run,
+            use_ssl=args.use_ssl,
+            use_tls=not args.no_tls,
             timeout=args.timeout,
         )
         if not args.dry_run:

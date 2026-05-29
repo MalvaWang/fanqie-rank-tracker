@@ -186,17 +186,22 @@ python3 fanqie_rank_agent.py serve --port 8791
 python3 fanqie_rank_agent.py report --limit 30
 ```
 
-推送飞书日报：
+邮件推送日报：
 
 ```bash
-FEISHU_WEBHOOK="https://open.feishu.cn/open-apis/bot/v2/hook/..." \
-python3 fanqie_rank_agent.py feishu-push --top 10
+SMTP_HOST="smtp.example.com" \
+SMTP_PORT="587" \
+SMTP_USERNAME="your@email.com" \
+SMTP_PASSWORD="邮箱授权码" \
+EMAIL_TO="target@email.com" \
+python3 fanqie_rank_agent.py email-push --top 10
 ```
 
-如果飞书机器人开启了签名校验，同时设置：
+常见邮箱通常不能直接用登录密码，需要在邮箱设置里开启 SMTP/IMAP，并生成“授权码”或“应用专用密码”。如果服务商要求 465 端口，额外设置：
 
 ```bash
-FEISHU_SECRET="你的机器人签名密钥"
+SMTP_PORT="465"
+SMTP_USE_SSL="true"
 ```
 
 ### GitHub Actions 定时运行
@@ -205,12 +210,19 @@ FEISHU_SECRET="你的机器人签名密钥"
 
 1. 抓取全部番茄榜单源。
 2. 更新并提交 `fanqie_rank_tracker/rank_tracker.sqlite3`。
-3. 推送爬榜最快 Top 10 到飞书。
+3. 推送爬榜最快 Top 10 到邮箱。
 
 需要在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions -> New repository secret` 中添加：
 
-- `FEISHU_WEBHOOK`：飞书自定义机器人 Webhook。
-- `FEISHU_SECRET`：可选，只有机器人开启签名校验时需要。
+- `SMTP_HOST`：SMTP 服务器，例如 `smtp.gmail.com`、`smtp.qq.com`、`smtp.163.com`。
+- `SMTP_PORT`：可选，默认 `587`。SSL 邮箱常用 `465`。
+- `SMTP_USERNAME`：邮箱账号。
+- `SMTP_PASSWORD`：邮箱 SMTP 授权码或应用专用密码，不要填登录密码。
+- `EMAIL_FROM`：可选，默认使用 `SMTP_USERNAME`。
+- `EMAIL_TO`：收件邮箱，多个邮箱可用英文逗号分隔。
+- `EMAIL_SUBJECT`：可选，自定义邮件标题。
+- `SMTP_USE_SSL`：可选，`465` 端口通常设为 `true`。
+- `SMTP_USE_TLS`：可选，`587` 端口默认使用 STARTTLS。
 
 项目内 Skill 入口：
 
