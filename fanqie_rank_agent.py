@@ -895,6 +895,14 @@ def markdown_cell(value: Any) -> str:
     return text.replace("|", "\\|")
 
 
+def shortdramas_search_url(title: Any) -> str:
+    keyword = str(title or "").strip()
+    if not keyword:
+        return "https://www.shortdramas.com/page/ip-application"
+    query = urllib.parse.urlencode({"page_no": 1, "search_keyword": keyword})
+    return f"https://www.shortdramas.com/page/ip-application?{query}"
+
+
 def build_static_report_data(
     conn: sqlite3.Connection,
     top: int = 30,
@@ -937,7 +945,13 @@ def build_markdown_report(data: dict[str, Any]) -> str:
     for index, item in enumerate(books, start=1):
         url = str(item.get("latest_book_url") or "")
         title_cell = markdown_cell(item.get("latest_title") or item.get("book_id"))
-        link_cell = f"[打开]({url})" if url else "-"
+        ip_url = shortdramas_search_url(item.get("latest_title") or item.get("book_id"))
+        link_parts = []
+        if url:
+            link_parts.append(f"[打开]({url})")
+        if ip_url:
+            link_parts.append(f"[搜IP]({ip_url})")
+        link_cell = " / ".join(link_parts) or "-"
         lines.append(
             "| "
             + " | ".join(
@@ -1173,6 +1187,27 @@ def build_html_report(data: dict[str, Any]) -> str:
       font-weight: 600;
     }
     a:hover { text-decoration: underline; }
+    .action-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 8px;
+      min-width: 92px;
+    }
+    .action-links button {
+      min-height: 24px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0;
+      background: transparent;
+      color: var(--accent);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .action-links button:hover {
+      text-decoration: underline;
+    }
     .empty {
       padding: 22px;
       text-align: center;
@@ -1302,6 +1337,14 @@ def build_html_report(data: dict[str, Any]) -> str:
       return Number.isFinite(value) ? value.toFixed(1).replace(/\\.0$$/, "") : "-";
     }
 
+    function shortdramasSearchUrl(title) {
+      const params = new URLSearchParams({
+        page_no: "1",
+        search_keyword: title || ""
+      });
+      return "https://www.shortdramas.com/page/ip-application?" + params.toString();
+    }
+
     function filteredBooks() {
       const needle = state.search.trim().toLowerCase();
       return books.filter((book) => {
@@ -1343,7 +1386,9 @@ def build_html_report(data: dict[str, Any]) -> str:
       }
       bookRows.innerHTML = items.map((book, index) => {
         const url = book.latest_book_url || "";
-        const link = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">打开</a>' : "-";
+        const link = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">打开</a>' : "";
+        const ipButton = '<button type="button" data-ip-index="' + index + '">搜IP</button>';
+        const actions = '<div class="action-links">' + link + ipButton + "</div>";
         return "<tr>"
           + "<td>" + (index + 1) + "</td>"
           + '<td class="title">' + esc(book.latest_title || book.book_id) + '<div class="muted">' + esc(book.latest_author || "") + "</div></td>"
@@ -1354,9 +1399,19 @@ def build_html_report(data: dict[str, Any]) -> str:
           + "<td>" + numberFormat.format(numberValue(book, "read_count")) + "</td>"
           + '<td><span class="status">' + esc(book.creation_status_label || "-") + "</span></td>"
           + '<td><span class="tag" data-tag="' + esc(book.status_tag || "") + '">' + esc(book.status_tag || "-") + "</span></td>"
-          + "<td>" + link + "</td>"
+          + "<td>" + actions + "</td>"
           + "</tr>";
       }).join("");
+      bookRows.querySelectorAll("[data-ip-index]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const book = items[Number(button.dataset.ipIndex)] || {};
+          const title = window.prompt("确认 ShortDramas 搜索书名", book.latest_title || "");
+          if (title === null) return;
+          const keyword = title.trim();
+          if (!keyword) return;
+          window.open(shortdramasSearchUrl(keyword), "_blank", "noopener");
+        });
+      });
     }
 
     function setPressed(containerId, dataName, value) {
