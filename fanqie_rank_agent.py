@@ -11,6 +11,7 @@ import hashlib
 import html
 import hmac
 import json
+import math
 import mimetypes
 import os
 import re
@@ -77,6 +78,15 @@ def safe_int(value: Any, default: int = 0) -> int:
         if value is None or value == "":
             return default
         return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
     except (TypeError, ValueError):
         return default
 
@@ -690,6 +700,15 @@ def query_books(
         total_climb = first_rank - current_rank
         fallback_climb = safe_int(item["rank_pos_diff"])
         effective_climb = rank_change_1d if rank_change_1d is not None else fallback_climb
+        selection_score = calculate_selection_score(
+            {
+                **item,
+                "rank_change_1d": rank_change_1d,
+                "read_growth_1d": read_growth_1d,
+                "total_climb": total_climb,
+                "effective_climb": effective_climb,
+            }
+        )
         item.update(
             {
                 "latest_snapshot_date": item["snapshot_date"],
@@ -702,12 +721,15 @@ def query_books(
                 "read_growth_1d": read_growth_1d,
                 "total_climb": total_climb,
                 "effective_climb": effective_climb,
+                "selection_score": selection_score,
             }
         )
         result.append(item)
 
     if order == "rank":
         result.sort(key=lambda item: safe_int(item["rank_pos"]))
+    elif order == "score":
+        result.sort(key=lambda item: (-(item["selection_score"] or 0), safe_int(item["rank_pos"])))
     elif order == "selected":
         result.sort(key=lambda item: (item["status_tag"] != "已选择", safe_int(item["rank_pos"])))
     elif order == "read_growth":
@@ -722,6 +744,22 @@ def query_books(
             )
         )
     return result[: max(1, limit)]
+
+
+def calculate_selection_score(item: dict[str, Any]) -> float:
+    """Score how worth-tracking a ranked book is today, on a 0-100 scale."""
+    climb = max(0, safe_int(item.get("effective_climb")))
+    total_climb = max(0, safe_int(item.get("total_climb")))
+    rank_pos = max(1, safe_int(item.get("rank_pos"), 999))
+    read_count = max(0, safe_int(item.get("read_count")))
+    read_growth = max(0, safe_int(item.get("read_growth_1d") or 0))
+
+    climb_score = min(36.0, climb * 4.0)
+    total_climb_score = min(16.0, total_climb * 1.5)
+    rank_score = max(0.0, 24.0 - ((rank_pos - 1) * 0.24))
+    read_score = min(12.0, math.log10(read_count + 1) * 2.0)
+    growth_score = min(12.0, math.log10(read_growth + 1) * 3.0)
+    return round(climb_score + total_climb_score + rank_score + read_score + growth_score, 1)
 
 
 def creation_status_label(value: Any) -> str:
@@ -767,6 +805,7 @@ def export_csv(
         "previous_rank",
         "rank_change_1d",
         "total_climb",
+        "selection_score",
         "read_count",
         "read_growth_1d",
         "latest_title",
@@ -823,7 +862,7 @@ def build_rank_report(
         lines.extend(
             [
                 f"{index}. {item.get('latest_title') or item.get('book_id')}",
-                f"   爬升 {climb_text}｜榜位 #{item.get('rank_pos')}｜{item.get('source_name', '')}",
+                f"   评分 {score_label(item)}｜爬升 {climb_text}｜榜位 #{item.get('rank_pos')}｜{item.get('source_name', '')}",
                 f"   在读 {safe_int(item.get('read_count')):,}｜{item.get('creation_status_label', '-')}",
                 f"   {item.get('latest_book_url', '')}",
             ]
@@ -843,6 +882,12 @@ def climb_value(item: dict[str, Any]) -> int:
 def climb_label(item: dict[str, Any]) -> str:
     climb = climb_value(item)
     return f"+{climb}" if climb > 0 else str(climb)
+
+
+def score_label(item: dict[str, Any]) -> str:
+    score = safe_float(item.get("selection_score"))
+    text = f"{score:.1f}"
+    return text[:-2] if text.endswith(".0") else text
 
 
 def markdown_cell(value: Any) -> str:
@@ -884,11 +929,11 @@ def build_markdown_report(data: dict[str, Any]) -> str:
         f"- 入库记录：{summary.get('book_count', 0)} 本",
         f"- 展示数量：Top {data.get('top', len(books))}",
         "",
-        "| # | 书名 | 爬升 | 榜位 | 榜单 | 在读 | 状态 | 链接 |",
-        "|---:|---|---:|---:|---|---:|---|---|",
+        "| # | 书名 | 评分 | 爬升 | 榜位 | 榜单 | 在读 | 状态 | 链接 |",
+        "|---:|---|---:|---:|---:|---|---:|---|---|",
     ]
     if not books:
-        lines.append("| - | 暂无榜单数据 | - | - | - | - | - | - |")
+        lines.append("| - | 暂无榜单数据 | - | - | - | - | - | - | - |")
     for index, item in enumerate(books, start=1):
         url = str(item.get("latest_book_url") or "")
         title_cell = markdown_cell(item.get("latest_title") or item.get("book_id"))
@@ -899,6 +944,7 @@ def build_markdown_report(data: dict[str, Any]) -> str:
                 [
                     str(index),
                     title_cell,
+                    score_label(item),
                     climb_label(item),
                     str(item.get("rank_pos") or "-"),
                     markdown_cell(item.get("source_name")),
@@ -1043,7 +1089,7 @@ def build_html_report(data: dict[str, Any]) -> str:
     }
     table {
       width: 100%;
-      min-width: 1060px;
+      min-width: 1120px;
       border-collapse: collapse;
     }
     th, td {
@@ -1083,7 +1129,7 @@ def build_html_report(data: dict[str, Any]) -> str:
       color: var(--accent);
       font-weight: 800;
     }
-    td:first-child, th:first-child, td:nth-child(3), th:nth-child(3), td:nth-child(4), th:nth-child(4), td:nth-child(6), th:nth-child(6) {
+    td:first-child, th:first-child, td:nth-child(3), th:nth-child(3), td:nth-child(4), th:nth-child(4), td:nth-child(5), th:nth-child(5), td:nth-child(7), th:nth-child(7) {
       text-align: right;
       white-space: nowrap;
     }
@@ -1193,6 +1239,7 @@ def build_html_report(data: dict[str, Any]) -> str:
             <th>#</th>
             <th><button type="button" data-sort="latest_title">书名<span class="sort-mark"></span></button></th>
             <th><button type="button" data-sort="effective_climb" data-active="true">爬升<span class="sort-mark">↓</span></button></th>
+            <th><button type="button" data-sort="selection_score">评分<span class="sort-mark"></span></button></th>
             <th><button type="button" data-sort="rank_pos">榜位<span class="sort-mark"></span></button></th>
             <th>榜单</th>
             <th><button type="button" data-sort="read_count">在读<span class="sort-mark"></span></button></th>
@@ -1224,6 +1271,7 @@ def build_html_report(data: dict[str, Any]) -> str:
     const sortLabels = {
       latest_title: "书名",
       effective_climb: "爬升",
+      selection_score: "评分",
       rank_pos: "榜位",
       read_count: "在读"
     };
@@ -1247,6 +1295,11 @@ def build_html_report(data: dict[str, Any]) -> str:
     function climbLabel(book) {
       const value = numberValue(book, "effective_climb");
       return value > 0 ? "+" + value : String(value);
+    }
+
+    function scoreLabel(book) {
+      const value = numberValue(book, "selection_score");
+      return Number.isFinite(value) ? value.toFixed(1).replace(/\\.0$$/, "") : "-";
     }
 
     function filteredBooks() {
@@ -1285,7 +1338,7 @@ def build_html_report(data: dict[str, Any]) -> str:
       visibleCount.textContent = numberFormat.format(items.length) + " 本";
       sortState.textContent = sortLabels[state.sortKey] + (state.sortDir === "asc" ? "升序" : "降序");
       if (!items.length) {
-        bookRows.innerHTML = '<tr><td class="empty" colspan="9">暂无匹配数据</td></tr>';
+        bookRows.innerHTML = '<tr><td class="empty" colspan="10">暂无匹配数据</td></tr>';
         return;
       }
       bookRows.innerHTML = items.map((book, index) => {
@@ -1295,6 +1348,7 @@ def build_html_report(data: dict[str, Any]) -> str:
           + "<td>" + (index + 1) + "</td>"
           + '<td class="title">' + esc(book.latest_title || book.book_id) + '<div class="muted">' + esc(book.latest_author || "") + "</div></td>"
           + '<td class="climb">' + esc(climbLabel(book)) + "</td>"
+          + "<td>" + esc(scoreLabel(book)) + "</td>"
           + "<td>" + esc(book.rank_pos || "-") + "</td>"
           + "<td>" + esc(book.source_name || "") + "</td>"
           + "<td>" + numberFormat.format(numberValue(book, "read_count")) + "</td>"
@@ -1683,13 +1737,13 @@ def print_report(db_path: Path, source_id: int | None, limit: int, creation_stat
     latest = summary.get("latest_snapshot") or {}
     print(f"数据库：{db_path}")
     print(f"最新快照：{latest.get('snapshot_date') or '-'}，记录：{len(books)}")
-    print("排名 | 爬升 | 首见涨幅 | 在读 | 完结 | 状态 | 书名")
+    print("排名 | 爬升 | 评分 | 首见涨幅 | 在读 | 完结 | 状态 | 书名")
     for item in books[:limit]:
         climb = item.get("rank_change_1d")
         if climb is None:
             climb = item.get("rank_pos_diff")
         print(
-            f"{item['rank_pos']:>3} | {climb:>4} | {item['total_climb']:>6} | "
+            f"{item['rank_pos']:>3} | {climb:>4} | {score_label(item):>4} | {item['total_climb']:>6} | "
             f"{item['read_count']:>8} | {item['creation_status_label']} | {item['status_tag']} | {item['latest_title']}"
         )
 

@@ -257,6 +257,7 @@
 
     .col-rank { width: 64px; }
     .col-climb { width: 86px; }
+    .col-score { width: 78px; }
     .col-book { width: auto; }
     .col-author { width: 130px; }
     .col-read { width: 110px; }
@@ -352,7 +353,7 @@
       }
 
       table {
-        min-width: 1040px;
+        min-width: 1120px;
       }
     }
   </style>
@@ -391,6 +392,7 @@
           <label for="order">排序</label>
           <select id="order">
             <option value="fastest">爬榜最快</option>
+            <option value="score">评分最高</option>
             <option value="read_growth">在读增长</option>
             <option value="rank">当前排名</option>
             <option value="selected">已选择优先</option>
@@ -436,6 +438,7 @@
             <tr>
               <th class="col-rank">排名</th>
               <th class="col-climb">爬升</th>
+              <th class="col-score">评分</th>
               <th class="col-book">书名</th>
               <th class="col-author">作者</th>
               <th class="col-read">在读</th>
@@ -477,6 +480,12 @@
       const n = Number(value);
       if (!Number.isFinite(n) || n === 0) return '0';
       return n > 0 ? `+${n}` : `${n}`;
+    }
+
+    function fmtScore(value) {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n)) return '-';
+      return n.toFixed(1).replace(/\.0$/, '');
     }
 
     function climbClass(value) {
@@ -567,6 +576,7 @@
         tr.innerHTML = `
           <td><span class="rank">${book.rank_pos}</span></td>
           <td><span class="climb ${climbClass(climb)}">${fmtClimb(climb)}</span></td>
+          <td>${fmtScore(book.selection_score)}</td>
           <td>
             <span class="book-title font-DNMrHsV173Pd4pgy">${escapeHtml(book.latest_title || '')}</span>
             <span class="book-sub font-DNMrHsV173Pd4pgy">${escapeHtml(book.latest_chapter_title || '')}</span>
