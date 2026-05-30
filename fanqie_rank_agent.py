@@ -895,8 +895,49 @@ def markdown_cell(value: Any) -> str:
     return text.replace("|", "\\|")
 
 
+TITLE_EDGE_PUNCTUATION = " \t\r\n:：,，.。!！?？-—_·、|/\\()（）[]【】{}《》<>\"'“”‘’"
+
+
+def is_garbled_title_char(char: str) -> bool:
+    if not char:
+        return False
+    code = ord(char)
+    return (
+        char in {"\ufffd", "□", "■", "▢", "▯"}
+        or 0xE000 <= code <= 0xF8FF
+        or 0xF0000 <= code <= 0xFFFFD
+        or 0x100000 <= code <= 0x10FFFD
+    )
+
+
+def clean_shortdramas_search_keyword(title: Any) -> str:
+    text = str(title or "").strip()
+    if not text:
+        return ""
+    chars: list[str] = []
+    started = False
+    last_was_space = False
+    for char in text:
+        if is_garbled_title_char(char):
+            if started:
+                break
+            continue
+        if char.isspace():
+            if started and chars and not last_was_space:
+                chars.append(" ")
+                last_was_space = True
+            continue
+        if not started and char.strip(TITLE_EDGE_PUNCTUATION) == "":
+            continue
+        chars.append(char)
+        started = True
+        last_was_space = False
+    cleaned = "".join(chars).strip(TITLE_EDGE_PUNCTUATION)
+    return cleaned or text
+
+
 def shortdramas_search_url(title: Any) -> str:
-    keyword = str(title or "").strip()
+    keyword = clean_shortdramas_search_keyword(title)
     if not keyword:
         return "https://www.shortdramas.com/page/ip-application"
     query = urllib.parse.urlencode({"page_no": 1, "search_keyword": keyword})
@@ -1337,10 +1378,53 @@ def build_html_report(data: dict[str, Any]) -> str:
       return Number.isFinite(value) ? value.toFixed(1).replace(/\\.0$$/, "") : "-";
     }
 
+    function isGarbledTitleChar(char) {
+      if (!char) return false;
+      const code = char.codePointAt(0);
+      return char === "\\uFFFD"
+        || char === "□"
+        || char === "■"
+        || char === "▢"
+        || char === "▯"
+        || (code >= 0xE000 && code <= 0xF8FF)
+        || (code >= 0xF0000 && code <= 0xFFFFD)
+        || (code >= 0x100000 && code <= 0x10FFFD);
+    }
+
+    function cleanShortdramasKeyword(title) {
+      const text = String(title || "").trim();
+      if (!text) return "";
+      let keyword = "";
+      let started = false;
+      let lastWasSpace = false;
+      for (const char of text) {
+        if (isGarbledTitleChar(char)) {
+          if (started) break;
+          continue;
+        }
+        if (/\\s/.test(char)) {
+          if (started && keyword && !lastWasSpace) {
+            keyword += " ";
+            lastWasSpace = true;
+          }
+          continue;
+        }
+        const edgePunctuationChar = /^[\\s:：,，.。!！?？\\-—_·、|/\\\\()[\\]{}（）【】《》<>"'“”‘’]$$/;
+        if (!started && edgePunctuationChar.test(char)) continue;
+        keyword += char;
+        started = true;
+        lastWasSpace = false;
+      }
+      const edgePunctuation = /^[\\s:：,，.。!！?？\\-—_·、|/\\\\()[\\]{}（）【】《》<>"'“”‘’]+|[\\s:：,，.。!！?？\\-—_·、|/\\\\()[\\]{}（）【】《》<>"'“”‘’]+$$/g;
+      const cleaned = keyword.replace(/\\s+/g, " ").trim().replace(edgePunctuation, "");
+      return cleaned || text;
+    }
+
     function shortdramasSearchUrl(title) {
+      const keyword = cleanShortdramasKeyword(title);
       const params = new URLSearchParams({
         page_no: "1",
-        search_keyword: title || ""
+        search_keyword: keyword || ""
       });
       return "https://www.shortdramas.com/page/ip-application?" + params.toString();
     }
@@ -1405,7 +1489,8 @@ def build_html_report(data: dict[str, Any]) -> str:
       bookRows.querySelectorAll("[data-ip-index]").forEach((button) => {
         button.addEventListener("click", () => {
           const book = items[Number(button.dataset.ipIndex)] || {};
-          const title = window.prompt("确认 ShortDramas 搜索书名", book.latest_title || "");
+          const suggestedTitle = cleanShortdramasKeyword(book.latest_title || book.book_id || "");
+          const title = window.prompt("确认 ShortDramas 搜索书名", suggestedTitle);
           if (title === null) return;
           const keyword = title.trim();
           if (!keyword) return;

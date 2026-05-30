@@ -8,6 +8,7 @@ from fanqie_rank_agent import (
     build_html_report,
     build_markdown_report,
     build_static_report_data,
+    clean_shortdramas_search_keyword,
     connect_db,
     extract_initial_state,
     extract_rank_sources,
@@ -41,6 +42,12 @@ class FanqieRankAgentTests(unittest.TestCase):
         self.assertEqual(len(sources), 2)
         self.assertEqual(sources[0].display_name, "男频阅读榜-西方奇幻")
         self.assertEqual(sources[1].display_name, "女频新书榜-种田")
+
+    def test_clean_shortdramas_search_keyword(self):
+        self.assertEqual(clean_shortdramas_search_keyword("废土拾荒：\ue521\ue4ec\ue50e\ue4e8合\ue4e9"), "废土拾荒")
+        self.assertEqual(clean_shortdramas_search_keyword("无乱码\ue000\ue001很好"), "无乱码")
+        self.assertEqual(clean_shortdramas_search_keyword("\ue557，\ue50c号\ue45a"), "号")
+        self.assertEqual(clean_shortdramas_search_keyword("鬼医"), "鬼医")
 
     def test_snapshot_query_and_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
