@@ -96,6 +96,9 @@ class FanqieRankAgentTests(unittest.TestCase):
             self.assertIn('data-sort="selection_score"', html)
             self.assertIn('data-sort="read_count"', html)
             self.assertIn('data-tag="不要"', html)
+            self.assertIn('data-book-tag', html)
+            self.assertIn('fanqie-rank-report-tags:v1', html)
+            self.assertIn('/api/books/', html)
 
 
 if __name__ == "__main__":

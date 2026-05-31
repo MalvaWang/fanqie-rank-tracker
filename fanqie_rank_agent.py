@@ -1222,6 +1222,33 @@ def build_html_report(data: dict[str, Any]) -> str:
       border-color: #ffb3c1;
       background: #fff1f3;
     }
+    .tag-select {
+      min-width: 76px;
+      min-height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 24px 2px 9px;
+      background: var(--panel);
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tag-select[data-tag="已选择"] {
+      color: #1a7f37;
+      border-color: #4ac26b;
+      background-color: #ecfdf0;
+    }
+    .tag-select[data-tag="不要"] {
+      color: #a40e26;
+      border-color: #ffb3c1;
+      background-color: #fff1f3;
+    }
+    .tag-select:disabled {
+      opacity: .65;
+      cursor: progress;
+    }
     a {
       color: var(--accent);
       text-decoration: none;
@@ -1338,12 +1365,15 @@ def build_html_report(data: dict[str, Any]) -> str:
       tag: "all",
       search: "",
       sortKey: "effective_climb",
-      sortDir: "desc"
+      sortDir: "desc",
+      apiAvailable: false
     };
     const numberFormat = new Intl.NumberFormat("zh-CN");
     const bookRows = document.getElementById("bookRows");
     const visibleCount = document.getElementById("visibleCount");
     const sortState = document.getElementById("sortState");
+    const tagOptions = ["待观察", "已选择", "不要"];
+    const tagStorageKey = "fanqie-rank-report-tags:v1";
     const sortLabels = {
       latest_title: "书名",
       effective_climb: "爬升",
@@ -1376,6 +1406,97 @@ def build_html_report(data: dict[str, Any]) -> str:
     function scoreLabel(book) {
       const value = numberValue(book, "selection_score");
       return Number.isFinite(value) ? value.toFixed(1).replace(/\\.0$$/, "") : "-";
+    }
+
+    function validTag(value) {
+      return tagOptions.includes(value) ? value : "待观察";
+    }
+
+    function readSavedTags() {
+      try {
+        const data = JSON.parse(localStorage.getItem(tagStorageKey) || "{}");
+        return data && typeof data === "object" ? data : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function writeSavedTags(data) {
+      try {
+        localStorage.setItem(tagStorageKey, JSON.stringify(data));
+      } catch {
+        // Ignore private-mode storage failures; the visible row still updates.
+      }
+    }
+
+    function saveLocalTag(bookId, statusTag) {
+      if (!bookId) return;
+      const data = readSavedTags();
+      data[bookId] = validTag(statusTag);
+      writeSavedTags(data);
+    }
+
+    function clearLocalTag(bookId) {
+      if (!bookId) return;
+      const data = readSavedTags();
+      if (Object.prototype.hasOwnProperty.call(data, bookId)) {
+        delete data[bookId];
+        writeSavedTags(data);
+      }
+    }
+
+    function applyLocalTags() {
+      const data = readSavedTags();
+      books.forEach((book) => {
+        const saved = data[String(book.book_id || "")];
+        if (tagOptions.includes(saved)) book.status_tag = saved;
+      });
+    }
+
+    async function detectTagApi() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        state.apiAvailable = response.ok;
+      } catch {
+        state.apiAvailable = false;
+      }
+      if (!state.apiAvailable) applyLocalTags();
+    }
+
+    async function persistBookTag(bookId, statusTag) {
+      if (!bookId) return;
+      if (state.apiAvailable) {
+        try {
+          const response = await fetch("/api/books/" + encodeURIComponent(bookId) + "/tag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status_tag: validTag(statusTag) })
+          });
+          if (response.ok) {
+            clearLocalTag(bookId);
+            return;
+          }
+        } catch {
+          // Fall back to local browser storage below.
+        }
+      }
+      saveLocalTag(bookId, statusTag);
+    }
+
+    function updateBookTag(bookId, statusTag) {
+      const tag = validTag(statusTag);
+      books.forEach((book) => {
+        if (String(book.book_id || "") === String(bookId)) book.status_tag = tag;
+      });
+    }
+
+    function tagSelectHtml(book) {
+      const tag = validTag(book.status_tag);
+      const bookId = String(book.book_id || "");
+      const options = tagOptions.map((item) => (
+        '<option value="' + esc(item) + '"' + (item === tag ? " selected" : "") + ">" + esc(item) + "</option>"
+      )).join("");
+      return '<select class="tag-select" data-book-tag="' + esc(bookId) + '" data-tag="' + esc(tag) + '">' + options + "</select>";
     }
 
     function isGarbledTitleChar(char) {
@@ -1482,10 +1603,20 @@ def build_html_report(data: dict[str, Any]) -> str:
           + "<td>" + esc(book.source_name || "") + "</td>"
           + "<td>" + numberFormat.format(numberValue(book, "read_count")) + "</td>"
           + '<td><span class="status">' + esc(book.creation_status_label || "-") + "</span></td>"
-          + '<td><span class="tag" data-tag="' + esc(book.status_tag || "") + '">' + esc(book.status_tag || "-") + "</span></td>"
+          + "<td>" + tagSelectHtml(book) + "</td>"
           + "<td>" + actions + "</td>"
           + "</tr>";
       }).join("");
+      bookRows.querySelectorAll("[data-book-tag]").forEach((select) => {
+        select.addEventListener("change", async () => {
+          const bookId = select.dataset.bookTag;
+          const nextTag = validTag(select.value);
+          select.disabled = true;
+          updateBookTag(bookId, nextTag);
+          await persistBookTag(bookId, nextTag);
+          renderRows();
+        });
+      });
       bookRows.querySelectorAll("[data-ip-index]").forEach((button) => {
         button.addEventListener("click", () => {
           const book = items[Number(button.dataset.ipIndex)] || {};
@@ -1513,7 +1644,7 @@ def build_html_report(data: dict[str, Any]) -> str:
       });
     });
 
-    document.querySelectorAll("[data-tag]").forEach((button) => {
+    document.querySelectorAll("#tagFilter [data-tag]").forEach((button) => {
       button.addEventListener("click", () => {
         state.tag = button.dataset.tag;
         setPressed("tagFilter", "tag", state.tag);
@@ -1544,7 +1675,7 @@ def build_html_report(data: dict[str, Any]) -> str:
       });
     });
 
-    renderRows();
+    detectTagApi().then(renderRows);
   </script>
 </body>
 </html>
@@ -1771,6 +1902,19 @@ class Handler(BaseHTTPRequestHandler):
             source_id = safe_int(urllib.parse.parse_qs(parsed.query).get("source_id", [0])[0]) or None
             with connect_db(SERVER_DB) as conn:
                 self.send_json(query_summary(conn, source_id=source_id))
+        elif parsed.path == "/report":
+            qs = urllib.parse.parse_qs(parsed.query)
+            source_id = safe_int(qs.get("source_id", [0])[0]) or None
+            top = safe_int(qs.get("top", [200])[0], 200)
+            completed_only = parse_bool(qs.get("completed_only", [""])[0], False)
+            with connect_db(SERVER_DB) as conn:
+                report_data = build_static_report_data(
+                    conn,
+                    top=top,
+                    source_id=source_id,
+                    completed_only=completed_only,
+                )
+            self.send_html(build_html_report(report_data))
         elif parsed.path == "/api/books":
             qs = urllib.parse.parse_qs(parsed.query)
             source_id = safe_int(qs.get("source_id", [0])[0]) or None
@@ -1865,6 +2009,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
+
+    def send_html(self, content: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        body = content.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, format: str, *args: Any) -> None:
         return
